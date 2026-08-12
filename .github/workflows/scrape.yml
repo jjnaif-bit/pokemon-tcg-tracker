@@ -1,0 +1,28 @@
+name: Tracker diario Pokemon TCG
+
+on:
+  schedule:
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ptcg-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Correr el tracker
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PTCG_API_KEY: ${{ secrets.PTCG_API_KEY }}
+        run: python -m src.scrape
