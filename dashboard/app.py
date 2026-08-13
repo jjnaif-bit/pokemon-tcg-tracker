@@ -116,3 +116,39 @@ try:
         st.caption("Aun no hay datos de Google Trends.")
 except Exception as e:
     st.caption("Google Trends todavia no tiene datos o hubo un error temporal.")
+
+st.header("🏆 Cartas gradeadas — salto de grado")
+st.caption("Precio por grado (venta real eBay, USD). El salto PSA9->PSA10 te dice cuanto ganas si sale un 10.")
+try:
+    graded = q("""
+        SELECT c.name, c.set_name, c.image_url,
+               MAX(CASE WHEN s.grade='psa10' THEN s.median_usd END) AS psa10,
+               MAX(CASE WHEN s.grade='psa9'  THEN s.median_usd END) AS psa9,
+               MAX(CASE WHEN s.grade='psa8'  THEN s.median_usd END) AS psa8,
+               ROUND(100.0 * (MAX(CASE WHEN s.grade='psa10' THEN s.median_usd END) - MAX(CASE WHEN s.grade='psa9' THEN s.median_usd END)) / NULLIF(MAX(CASE WHEN s.grade='psa9' THEN s.median_usd END),0), 0) AS salto_pct
+        FROM graded_price_snapshots s
+        JOIN graded_cards c ON c.tcgplayer_id = s.tcgplayer_id
+        WHERE s.captured_on = (SELECT MAX(captured_on) FROM graded_price_snapshots)
+        GROUP BY c.name, c.set_name, c.image_url
+        ORDER BY psa10 DESC NULLS LAST
+    """)
+    if not graded.empty:
+        for i in range(0, len(graded), 3):
+            cols = st.columns(3)
+            for j, (_, r) in enumerate(graded.iloc[i:i+3].iterrows()):
+                with cols[j]:
+                    if r.get("image_url"): st.image(r["image_url"], width=140)
+                    st.markdown(f"**{r['name']}**")
+                    st.caption(r["set_name"] or "")
+                    p10 = f"${r['psa10']:,.0f}" if r['psa10'] else "-"
+                    p9 = f"${r['psa9']:,.0f}" if r['psa9'] else "-"
+                    p8 = f"${r['psa8']:,.0f}" if r['psa8'] else "-"
+                    st.markdown(f"PSA 10: **{p10}**  \nPSA 9: {p9}  \nPSA 8: {p8}")
+                    if r["salto_pct"]:
+                        st.markdown(f"🚀 Salto 9→10: **+{r['salto_pct']:.0f}%**")
+        st.subheader("Tabla comparativa")
+        st.dataframe(graded.rename(columns={"name":"Carta","set_name":"Set","psa10":"PSA 10","psa9":"PSA 9","psa8":"PSA 8","salto_pct":"Salto 9→10 %"}).drop(columns=["image_url"]), use_container_width=True, hide_index=True)
+    else:
+        st.caption("Aun no hay datos de gradeadas.")
+except Exception as e:
+    st.caption("Precios gradeados todavia no disponibles.")
