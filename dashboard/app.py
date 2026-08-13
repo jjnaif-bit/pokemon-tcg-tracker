@@ -89,3 +89,30 @@ caras = q("""
 if not caras.empty:
     caras = caras.sort_values("market_usd", ascending=False).head(12)
     tarjetas(caras, modo="valor")
+
+st.header("🇲🇽 Interes de busqueda en Mexico (Google Trends)")
+st.caption("Que tanto busca la gente cada termino. 100 = el pico de ese termino en el periodo.")
+try:
+    trends_terms = q("SELECT DISTINCT t.term, w.label FROM trends_snapshots t JOIN trends_watch_terms w ON w.term = t.term ORDER BY w.label")
+    if not trends_terms.empty:
+        elegidos_tr = st.multiselect("Terminos a comparar", trends_terms["label"].tolist(), default=trends_terms["label"].tolist()[:4])
+        if elegidos_tr:
+            terms_sel = trends_terms[trends_terms["label"].isin(elegidos_tr)]["term"].tolist()
+            serie_tr = q("""
+                SELECT t.trend_date, w.label, t.interest
+                FROM trends_snapshots t JOIN trends_watch_terms w ON w.term = t.term
+                WHERE t.term = ANY(%(terms)s) ORDER BY t.trend_date
+            """, {"terms": terms_sel})
+            if not serie_tr.empty:
+                st.line_chart(serie_tr.pivot_table(index="trend_date", columns="label", values="interest"))
+        st.subheader("Interes promedio del periodo")
+        prom = q("""
+            SELECT w.label, ROUND(AVG(t.interest),1) AS promedio
+            FROM trends_snapshots t JOIN trends_watch_terms w ON w.term = t.term
+            GROUP BY w.label ORDER BY promedio DESC
+        """)
+        st.bar_chart(prom.set_index("label")["promedio"])
+    else:
+        st.caption("Aun no hay datos de Google Trends.")
+except Exception as e:
+    st.caption("Google Trends todavia no tiene datos o hubo un error temporal.")
