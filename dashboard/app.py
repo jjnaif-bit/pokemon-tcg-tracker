@@ -152,3 +152,47 @@ try:
         st.caption("Aun no hay datos de gradeadas.")
 except Exception as e:
     st.caption("Precios gradeados todavia no disponibles.")
+
+import re
+st.header("🔎 Buscador por presupuesto, gradeadora y grado")
+st.caption("Filtra cartas gradeadas por rango de precio, empresa y grado. Se ordenan por las que mas se venden (ventas eBay).")
+try:
+    base = q("""
+        SELECT c.name, c.set_name, c.image_url, s.grade, s.median_usd, s.sales_count
+        FROM graded_price_snapshots s
+        JOIN graded_cards c ON c.tcgplayer_id = s.tcgplayer_id
+        WHERE s.captured_on = (SELECT MAX(captured_on) FROM graded_price_snapshots)
+          AND s.median_usd IS NOT NULL
+    """)
+    if base.empty:
+        st.caption("Aun no hay datos de gradeadas.")
+    else:
+        def separar(g):
+            if g == "ungraded": return ("Ungraded", "-")
+            m = re.match(r"([a-z]+)(\d+)", str(g))
+            if not m: return (str(g).upper(), "-")
+            emp, num = m.group(1).upper(), m.group(2)
+            if len(num) == 2 and num != "10": num = num[0] + "." + num[1]
+            return (emp, num)
+        base[["empresa","num_grado"]] = base["grade"].apply(lambda g: pd.Series(separar(g)))
+
+        c1, c2, c3 = st.columns(3)
+        empresas = sorted(base["empresa"].unique().tolist())
+        emp_sel = c1.selectbox("Gradeadora", empresas, index=empresas.index("PSA") if "PSA" in empresas else 0)
+        grados_disp = sorted(base[base["empresa"]==emp_sel]["num_grado"].unique().tolist(), reverse=True)
+        grado_sel = c2.selectbox("Grado", grados_disp)
+        rango = c3.slider("Presupuesto USD", 0, int(base["median_usd"].max())+1, (10, 50))
+
+        filtro = base[(base["empresa"]==emp_sel) & (base["num_grado"]==grado_sel) & (base["median_usd"]>=rango[0]) & (base["median_usd"]<=rango[1])]
+        filtro = filtro.sort_values("sales_count", ascending=False, na_position="last")
+
+        st.markdown(f"**{len(filtro)} cartas** con {emp_sel} {grado_sel} entre ${rango[0]} y ${rango[1]}")
+        if filtro.empty:
+            st.info("Ninguna carta cae en ese rango. Prueba ampliar el presupuesto o cambiar el grado.")
+        else:
+            st.dataframe(
+                filtro[["name","set_name","median_usd","sales_count"]].rename(columns={"name":"Carta","set_name":"Set","median_usd":f"Precio {emp_sel} {grado_sel} USD","sales_count":"Ventas eBay"}),
+                use_container_width=True, hide_index=True
+            )
+except Exception as e:
+    st.caption("Buscador todavia no disponible.")
