@@ -4,7 +4,7 @@ import pandas as pd
 import psycopg2
 import streamlit as st
 
-st.set_page_config(page_title="Toshi · Precios Pokemon", page_icon="🔥", layout="wide")
+st.set_page_config(page_title="Toshi Precios Pokemon", page_icon="🔥", layout="wide")
 
 def dsn():
     return st.secrets.get("DATABASE_URL", os.environ.get("DATABASE_URL"))
@@ -13,17 +13,6 @@ def dsn():
 def q(sql, params=None):
     with psycopg2.connect(dsn()) as conn:
         return pd.read_sql(sql, conn, params=params)
-
-st.markdown("""
-<style>
-    .card-box { background:#1a1d24; border-radius:14px; padding:12px; border:1px solid #2a2e37; margin-bottom:10px; }
-    .card-name { font-weight:700; font-size:15px; color:#fff; margin:6px 0 2px; }
-    .card-set { font-size:12px; color:#9aa0aa; }
-    .price-up { color:#22c55e; font-weight:700; }
-    .price-down { color:#ef4444; font-weight:700; }
-    .price-big { font-size:20px; font-weight:800; color:#fff; }
-</style>
-""", unsafe_allow_html=True)
 
 st.title("🔥 Toshi Collectibles — Radar de precios Pokemon")
 st.caption("Precio de mercado de TCGplayer (USD) · datos de pokemontcg.io")
@@ -43,16 +32,24 @@ col_b.metric("Dias de datos", n_fechas)
 col_c.metric("Ultima captura", str(fechas["captured_on"].max()) if n_fechas else "-")
 
 if n_fechas < 2:
-    st.info("📸 Ya tienes la primera foto de precios. Para ver que sube y que baja necesito al menos dos dias distintos. Corre el bot otra vez manana y aqui apareceran las tendencias.")
+    st.info("📸 Ya tienes la primera foto de precios. Corre el bot otra vez manana y aqui apareceran las tendencias.")
 
-def tarjetas(df):
-    cols = st.columns(4)
-    for i, (_, r) in enumerate(df.iterrows()):
-        with cols[i % 4]:
-            signo = "▲" if (r["cambio_pct"] or 0) >= 0 else "▼"
-            clase = "price-up" if (r["cambio_pct"] or 0) >= 0 else "price-down"
-            img = r["image_small"] or ""
-            st.markdown(f'<div class="card-box"><img src="{img}" style="width:100%; border-radius:8px;" /><div class="card-name">{r["name"]}</div><div class="card-set">{r["set_name"]} · #{r["number"]}</div><div class="price-big">${r["precio_fin"]:.2f}</div><div class="{clase}">{signo} {abs(r["cambio_pct"]):.1f}% · antes ${r["precio_ini"]:.2f}</div></div>', unsafe_allow_html=True)
+def tarjetas(df, modo="cambio"):
+    for i in range(0, len(df), 4):
+        cols = st.columns(4)
+        for j, (_, r) in enumerate(df.iloc[i:i+4].iterrows()):
+            with cols[j]:
+                if r.get("image_small"):
+                    st.image(r["image_small"], use_container_width=True)
+                st.markdown(f"**{r['name']}**")
+                st.caption(f"{r['set_name']} #{r['number']} {r.get('rarity') or ''}")
+                if modo == "cambio":
+                    signo = "🟢" if (r["cambio_pct"] or 0) >= 0 else "🔴"
+                    st.markdown(f"### ${r['precio_fin']:.2f}")
+                    st.markdown(f"{signo} {abs(r['cambio_pct']):.1f}% antes ${r['precio_ini']:.2f}")
+                else:
+                    st.markdown(f"### ${r['market_usd']:.2f}")
+                    st.caption(r["variant"])
 
 if n_fechas >= 2:
     st.header("📈 Las que mas subieron")
@@ -76,11 +73,11 @@ if n_fechas >= 2:
     """, {"desde": desde, "variant": variante_pref, "pmin": precio_min})
     subieron = movimiento[movimiento["cambio_pct"] > 0].head(12)
     if not subieron.empty: tarjetas(subieron)
-    else: st.write("Ninguna subio en este periodo con los filtros actuales.")
+    else: st.write("Ninguna subio en este periodo.")
     st.header("📉 Las que mas bajaron")
     bajaron = movimiento[movimiento["cambio_pct"] < 0].sort_values("cambio_pct").head(8)
     if not bajaron.empty: tarjetas(bajaron)
-    else: st.write("Ninguna bajo en este periodo con los filtros actuales.")
+    else: st.write("Ninguna bajo en este periodo.")
 
 st.header("💎 Las mas valiosas ahora")
 caras = q("""
@@ -91,23 +88,4 @@ caras = q("""
 """)
 if not caras.empty:
     caras = caras.sort_values("market_usd", ascending=False).head(12)
-    cols = st.columns(4)
-    for i, (_, r) in enumerate(caras.iterrows()):
-        with cols[i % 4]:
-            img = r["image_small"] or ""
-            st.markdown(f'<div class="card-box"><img src="{img}" style="width:100%; border-radius:8px;" /><div class="card-name">{r["name"]}</div><div class="card-set">{r["set_name"]} · #{r["number"]} · {r["rarity"] or ""}</div><div class="price-big">${r["market_usd"]:.2f}</div><div class="card-set">{r["variant"]}</div></div>', unsafe_allow_html=True)
-
-st.header("🔍 Ver una carta en el tiempo")
-nombres = q("SELECT DISTINCT name FROM ptcg_cards ORDER BY name")
-if not nombres.empty:
-    elegida = st.selectbox("Carta", nombres["name"].tolist())
-    if elegida:
-        serie = q("""
-            SELECT s.captured_on, s.variant, s.market_usd
-            FROM ptcg_price_snapshots s JOIN ptcg_cards c ON c.card_id = s.card_id
-            WHERE c.name = %(name)s AND s.captured_on >= %(desde)s ORDER BY s.captured_on
-        """, {"name": elegida, "desde": desde})
-        if len(serie) > 1:
-            st.line_chart(serie.pivot_table(index="captured_on", columns="variant", values="market_usd"))
-        else:
-            st.caption("Esta carta necesita mas de un dia de datos para mostrar la grafica.")
+    tarjetas(caras, modo="valor")
