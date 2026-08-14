@@ -13,7 +13,7 @@ log = logging.getLogger("movers")
 
 BASE = "https://www.pokemonpricetracker.com/api/v2"
 CATEGORIAS = ["mostActive", "volumeMovers"]
-CUANTAS = 40
+CUANTAS = 100
 PAUSA = 2
 
 def _dsn():

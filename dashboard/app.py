@@ -15,6 +15,40 @@ def q(sql, params=None):
     with psycopg2.connect(dsn()) as conn:
         return pd.read_sql(sql, conn, params=params)
 
+def guardar_busqueda(d):
+    """Guarda una carta buscada en la base, para el archivo historico."""
+    try:
+        tid = str(d.get("tcgPlayerId") or d.get("id") or "")
+        if not tid:
+            return
+        img = d.get("imageCdnUrl400") or d.get("imageCdnUrl200")
+        mk = (d.get("prices") or {}).get("market")
+        with psycopg2.connect(dsn()) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO graded_cards (tcgplayer_id, name, set_name, number, rarity, image_url, market_usd)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (tcgplayer_id) DO UPDATE SET name=EXCLUDED.name, set_name=EXCLUDED.set_name,
+                        rarity=EXCLUDED.rarity, image_url=EXCLUDED.image_url, market_usd=EXCLUDED.market_usd, last_seen=now()
+                """, (tid, d.get("name"), d.get("setName"), d.get("cardNumber"), d.get("rarity"), img,
+                      round(float(mk),2) if mk else None))
+                sbg = (d.get("ebay") or {}).get("salesByGrade") or {}
+                for g, v in sbg.items():
+                    if not isinstance(v, dict): continue
+                    gr = g.lower().replace(".","").replace("_","")
+                    def n(x):
+                        try: return round(float(x),2)
+                        except: return None
+                    cur.execute("""
+                        INSERT INTO graded_price_snapshots (tcgplayer_id, grade, median_usd, average_usd, sales_count)
+                        VALUES (%s,%s,%s,%s,%s)
+                        ON CONFLICT (tcgplayer_id, captured_on, grade) DO UPDATE SET
+                            median_usd=EXCLUDED.median_usd, average_usd=EXCLUDED.average_usd, sales_count=EXCLUDED.sales_count
+                    """, (tid, gr, n(v.get("medianPrice")), n(v.get("averagePrice")), v.get("count")))
+            conn.commit()
+    except Exception:
+        pass
+
 def sep_grade(g):
     if g == "ungraded": return ("Ungraded", "-")
     m = re.match(r"([a-z]+)(\d+)", str(g))
@@ -26,7 +60,7 @@ def sep_grade(g):
 st.title("🔥 Toshi Collectibles — Radar de mercado Pokemon")
 st.caption("Cartas mas vendidas + precios gradeados PSA/CGC/BGS (venta real eBay, USD)")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar", "🔥 Mas vendidas", "💎 TCGplayer", "🇲🇽 Google Trends"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar", "🔥 Mas vendidas", "💎 TCGplayer", "🇲🇽 Google Trends", "📅 Historico"])
 
 with tab1:
     st.header("Buscar cualquier carta del catalogo")
@@ -52,6 +86,7 @@ with tab1:
                         if not resultados:
                             st.warning("No se encontro esa carta.")
                         for d in resultados:
+                            guardar_busqueda(d)
                             st.divider()
                             cc = st.columns([1, 2])
                             with cc[0]:
@@ -203,3 +238,47 @@ with tab5:
             st.caption("Aun no hay datos de Google Trends.")
     except Exception as e:
         st.caption("Google Trends no disponible.")
+
+
+with tab6:
+    st.header("Historico de precios")
+    st.caption("Evolucion de precio por grado de cualquier carta en tu base. Cada busqueda que haces alimenta este archivo.")
+    try:
+        cartas_hist = q("""
+            SELECT DISTINCT c.tcgplayer_id, c.name, c.set_name
+            FROM graded_cards c
+            JOIN graded_price_snapshots s ON s.tcgplayer_id = c.tcgplayer_id
+            GROUP BY c.tcgplayer_id, c.name, c.set_name
+            HAVING COUNT(DISTINCT s.captured_on) >= 1
+            ORDER BY c.name
+        """)
+        if cartas_hist.empty:
+            st.info("Aun no hay cartas en el archivo. Busca cartas en la pestaña 'Buscar carta' y se iran guardando aqui.")
+        else:
+            cartas_hist["etiqueta"] = cartas_hist["name"] + " (" + cartas_hist["set_name"].fillna("") + ")"
+            elegida = st.selectbox("Elige una carta", cartas_hist["etiqueta"].tolist())
+            tid = cartas_hist[cartas_hist["etiqueta"]==elegida]["tcgplayer_id"].iloc[0]
+            serie = q("""
+                SELECT captured_on, grade, median_usd
+                FROM graded_price_snapshots
+                WHERE tcgplayer_id = %(t)s AND median_usd IS NOT NULL
+                ORDER BY captured_on
+            """, {"t": tid})
+            if serie.empty:
+                st.caption("Sin datos para esta carta.")
+            else:
+                dias_hist = serie["captured_on"].nunique()
+                st.markdown(f"**{dias_hist} dia(s)** de datos guardados para esta carta.")
+                grados_hist = sorted(serie["grade"].unique().tolist())
+                sel_grados = st.multiselect("Grados a mostrar", grados_hist, default=[g for g in ["psa10","psa9"] if g in grados_hist] or grados_hist[:3])
+                if sel_grados:
+                    filtrada = serie[serie["grade"].isin(sel_grados)]
+                    if filtrada["captured_on"].nunique() > 1:
+                        st.line_chart(filtrada.pivot_table(index="captured_on", columns="grade", values="median_usd"))
+                    else:
+                        st.info("Necesitas al menos 2 dias distintos para ver la grafica. Vuelve manana o pasado cuando el bot haya guardado mas fotos.")
+                    st.subheader("Datos guardados")
+                    tabla_h = filtrada.pivot_table(index="captured_on", columns="grade", values="median_usd")
+                    st.dataframe(tabla_h, use_container_width=True)
+    except Exception as e:
+        st.caption("Historico no disponible.")
