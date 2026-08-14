@@ -164,3 +164,61 @@ try:
         st.caption("Aun no hay datos de Google Trends.")
 except Exception as e:
     st.caption("Google Trends no disponible.")
+
+st.header("🔍 Buscar CUALQUIER carta (en vivo)")
+st.caption("Escribe el nombre de cualquier carta del catalogo. Consulta precios por grado al momento.")
+import requests as _rq
+def _sep_grade(g):
+    if g == "ungraded": return ("Ungraded", "-")
+    m = re.match(r"([a-z]+)(\d+)", str(g))
+    if not m: return (str(g).upper(), "-")
+    emp, num = m.group(1).upper(), m.group(2)
+    if len(num) == 2 and num != "10": num = num[0] + "." + num[1]
+    return (emp, num)
+
+busqueda = st.text_input("Nombre de la carta", placeholder="ej. Charizard ex 151, Umbreon VMAX...")
+if busqueda:
+    api_key = st.secrets.get("PPT_API_KEY", os.environ.get("PPT_API_KEY"))
+    if not api_key:
+        st.error("Falta configurar PPT_API_KEY en los Secrets de Streamlit.")
+    else:
+        with st.spinner("Buscando en el catalogo..."):
+            try:
+                r = _rq.get("https://www.pokemonpricetracker.com/api/v2/cards",
+                            params={"search": busqueda, "limit": 5, "includeEbay": "true"},
+                            headers={"Authorization": f"Bearer {api_key}"}, timeout=30)
+                if r.status_code != 200:
+                    st.error(f"Error de la API (HTTP {r.status_code}).")
+                else:
+                    data = r.json().get("data")
+                    resultados = data if isinstance(data, list) else ([data] if data else [])
+                    if not resultados:
+                        st.warning("No se encontro ninguna carta con ese nombre.")
+                    else:
+                        for d in resultados:
+                            st.divider()
+                            cols = st.columns([1, 2])
+                            with cols[0]:
+                                img = d.get("imageCdnUrl400") or d.get("imageCdnUrl200")
+                                if img: st.image(img, width=160)
+                            with cols[1]:
+                                st.markdown(f"### {d.get('name')}")
+                                st.caption(f"{d.get('setName') or ''} #{d.get('cardNumber') or ''} · {d.get('rarity') or ''}")
+                                mk = (d.get('prices') or {}).get('market')
+                                if mk: st.markdown(f"Precio TCGplayer (cruda): **${mk:,.2f}**")
+                                sbg = (d.get("ebay") or {}).get("salesByGrade") or {}
+                                if sbg:
+                                    filas = []
+                                    for g, v in sbg.items():
+                                        if not isinstance(v, dict): continue
+                                        emp, num = _sep_grade(g)
+                                        filas.append({"Gradeadora": emp, "Grado": num,
+                                                      "Precio mediano USD": v.get("medianPrice"),
+                                                      "Ventas": v.get("count")})
+                                    if filas:
+                                        df_g = pd.DataFrame(filas).sort_values("Precio mediano USD", ascending=False)
+                                        st.dataframe(df_g, use_container_width=True, hide_index=True)
+                                else:
+                                    st.caption("Sin datos de ventas gradeadas para esta carta.")
+            except Exception as e:
+                st.error(f"Error al buscar: {str(e)[:150]}")
