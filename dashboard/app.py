@@ -31,7 +31,9 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar",
 with tab1:
     st.header("Buscar cualquier carta del catalogo")
     st.caption("Escribe el nombre. Consulta precios por grado al momento.")
-    busqueda = st.text_input("Nombre de la carta", placeholder="ej. Charizard ex 151, Umbreon VMAX...")
+    cbus1, cbus2 = st.columns([3, 1])
+    busqueda = cbus1.text_input("Nombre de la carta", placeholder="ej. Charizard ex 151, Umbreon VMAX, Shibuya Pikachu...")
+    idioma = cbus2.selectbox("Idioma", ["Ingles", "Japones"])
     if busqueda:
         api_key = st.secrets.get("PPT_API_KEY", os.environ.get("PPT_API_KEY"))
         if not api_key:
@@ -40,7 +42,7 @@ with tab1:
             with st.spinner("Buscando..."):
                 try:
                     r = _rq.get("https://www.pokemonpricetracker.com/api/v2/cards",
-                                params={"search": busqueda, "limit": 5, "includeEbay": "true"},
+                                params={"search": busqueda, "limit": 5, "includeEbay": "true", **({"language": "japanese"} if idioma == "Japones" else {})},
                                 headers={"Authorization": f"Bearer {api_key}"}, timeout=30)
                     if r.status_code != 200:
                         st.error(f"Error API (HTTP {r.status_code}).")
