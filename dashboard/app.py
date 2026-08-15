@@ -307,9 +307,15 @@ with tab5:
             import pandas as _pd
             tabla = cruce.merge(ventas, on="card_name", how="left")
             tabla["interes_prom"] = tabla["interes_prom"].round(0)
-            tabla = tabla.sort_values("ventas", ascending=False, na_position="last")
-            st.subheader("Ranking: se venden Y se buscan")
-            st.dataframe(tabla[["card_name","ventas","interes_prom"]].rename(columns={"card_name":"Carta","ventas":"Ventas eBay","interes_prom":"Interes Mexico (0-100)"}), use_container_width=True, hide_index=True)
+            # Quitar las que no tienen senal de busqueda en Mexico (interes 0 o nulo)
+            tabla = tabla[tabla["interes_prom"].fillna(0) > 0]
+            tabla = tabla.sort_values("interes_prom", ascending=False, na_position="last")
+            st.subheader("Ranking: se venden Y se buscan en Mexico")
+            st.caption("Solo cartas con senal de busqueda real en Mexico. El interes es relativo (100 = pico de ese termino).")
+            if tabla.empty:
+                st.info("Ninguna carta del mercado de hoy tiene senal clara de busqueda en Mexico todavia.")
+            else:
+                st.dataframe(tabla[["card_name","ventas","interes_prom"]].rename(columns={"card_name":"Carta","ventas":"Ventas eBay","interes_prom":"Interes Mexico"}), use_container_width=True, hide_index=True)
             st.subheader("Ver evolucion en Mexico")
             opciones = sorted(cruce["card_name"].tolist())
             elegidas = st.multiselect("Cartas a comparar", opciones, default=opciones[:4], max_selections=5)
