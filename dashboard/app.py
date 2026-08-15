@@ -118,7 +118,7 @@ with _hc[1]:
     st.markdown("<p style='color:#9a8d6f; margin-top:0; margin-left:-30px; font-size:15px;'>Radar de mercado Pokemon</p>", unsafe_allow_html=True)
 st.caption("Cartas mas vendidas + precios gradeados PSA/CGC/BGS (venta real eBay, USD)")
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar", "🔥 Mas vendidas", "💎 TCGplayer", "🇲🇽 Google Trends", "📅 Historico"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar", "🔥 Mas vendidas", "💎 TCGplayer", "🇲🇽 Google Trends", "📅 Historico", "🤖 Sugerencias IA"])
 
 with tab1:
     st.header("Buscar cualquier carta del catalogo")
@@ -374,3 +374,64 @@ with tab6:
                     st.dataframe(tabla_h, use_container_width=True)
     except Exception as e:
         st.caption("Historico no disponible.")
+
+with tab7:
+    st.header("🤖 Sugerencias de compra (IA)")
+    st.caption("Claude analiza el mercado (solo PSA 9, PSA 10 y CGC 10) y sugiere oportunidades. Son sugerencias, no verdades: la decision final es tuya.")
+    st.info("💡 Cada analisis cuesta ~1 centavo de dolar. Se ejecuta solo cuando tocas el boton.")
+    if st.button("🔍 Analizar mercado ahora", type="primary"):
+        api_key = st.secrets.get("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY"))
+        if not api_key:
+            st.error("Falta ANTHROPIC_API_KEY en los Secrets de Streamlit.")
+        else:
+            try:
+                datos = q("""
+                    SELECT c.name, c.set_name,
+                           MAX(CASE WHEN s.grade='psa10' THEN s.median_usd END) AS psa10,
+                           MAX(CASE WHEN s.grade='psa9'  THEN s.median_usd END) AS psa9,
+                           MAX(CASE WHEN s.grade='cgc10' THEN s.median_usd END) AS cgc10,
+                           MAX(s.sales_count) AS ventas,
+                           ROUND(100.0*(MAX(CASE WHEN s.grade='psa10' THEN s.median_usd END)-MAX(CASE WHEN s.grade='psa9' THEN s.median_usd END))/NULLIF(MAX(CASE WHEN s.grade='psa9' THEN s.median_usd END),0),0) AS salto
+                    FROM graded_price_snapshots s JOIN graded_cards c ON c.tcgplayer_id=s.tcgplayer_id
+                    WHERE s.captured_on = (SELECT MAX(captured_on) FROM graded_price_snapshots)
+                      AND s.grade IN ('psa9','psa10','cgc10')
+                    GROUP BY c.name, c.set_name
+                    HAVING MAX(s.sales_count) IS NOT NULL
+                    ORDER BY ventas DESC NULLS LAST LIMIT 40
+                """)
+                if datos.empty:
+                    st.warning("No hay datos suficientes para analizar.")
+                else:
+                    lineas = []
+                    for _, r in datos.iterrows():
+                        p10 = f"${r['psa10']:.0f}" if pd.notna(r['psa10']) else "N/D"
+                        p9 = f"${r['psa9']:.0f}" if pd.notna(r['psa9']) else "N/D"
+                        cg = f"${r['cgc10']:.0f}" if pd.notna(r['cgc10']) else "N/D"
+                        salto = f"+{r['salto']:.0f}%" if pd.notna(r['salto']) else "N/D"
+                        lineas.append(f"- {r['name']} ({r['set_name']}): PSA10 {p10}, PSA9 {p9}, CGC10 {cg}, salto 9->10 {salto}, {int(r['ventas'])} ventas eBay")
+                    tabla_texto = "\\n".join(lineas)
+                    prompt = f"""Eres un asesor experto en compra de cartas Pokemon gradeadas para reventa. Analiza estos datos reales del mercado (precios de venta eBay por grado, en USD, solo PSA 9, PSA 10 y CGC 10) y da recomendaciones de compra concretas para un negocio en Mexico.
+
+Datos del mercado hoy:
+{tabla_texto}
+
+Da tu analisis en espanol, estructurado asi:
+1. TOP 3 OPORTUNIDADES DE COMPRA: las mejores cartas para comprar/gradear, con razon breve (salto 9->10 alto + muchas ventas = alta demanda y buen margen al gradear).
+2. CUIDADO CON: 2-3 cartas de riesgo (poco volumen, salto bajo, o precio inflado).
+3. UNA RECOMENDACION DE ESTRATEGIA general.
+Se concreto y breve. Recuerda que son sugerencias, no garantias."""
+                    with st.spinner("Claude esta analizando el mercado..."):
+                        resp = _rq.post(
+                            "https://api.anthropic.com/v1/messages",
+                            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                            json={"model": "claude-haiku-4-5-20251001", "max_tokens": 1500, "messages": [{"role": "user", "content": prompt}]},
+                            timeout=60,
+                        )
+                    if resp.status_code == 200:
+                        texto = resp.json()["content"][0]["text"]
+                        st.markdown(texto)
+                        st.caption("Analisis generado por Claude (Haiku). Verifica siempre con tu propio criterio.")
+                    else:
+                        st.error(f"Error de la API de Anthropic (HTTP {resp.status_code}): {resp.text[:200]}")
+            except Exception as e:
+                st.error(f"Error al analizar: {str(e)[:200]}")
