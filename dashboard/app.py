@@ -17,7 +17,9 @@ st.markdown("""
     .stTabs [aria-selected="true"] { color: #b8860b !important; }
     .stButton>button { background: #1a1a1a; color: #d4af37; border: none; font-weight: 600; }
     .stDataFrame { border: 1px solid #e8e0d0; border-radius: 10px; }
-    [data-testid="stCaptionContainer"] { color: #9a8d6f !important; }
+    [data-testid="stCaptionContainer"] { color: #9a8d6f !important; font-size: 14px; }
+    .stMarkdown p, .stMarkdown li { font-size: 16px; }
+    [data-testid="stDataFrame"] { font-size: 15px; }
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
@@ -119,15 +121,18 @@ with tab1:
                                 st.markdown(f"### {d.get('name')}")
                                 st.caption(f"{d.get('setName') or ''} #{d.get('cardNumber') or ''} · {d.get('rarity') or ''}")
                                 mk = (d.get('prices') or {}).get('market')
-                                if mk: st.markdown(f"TCGplayer (cruda): **${mk:,.2f}**")
+                                if mk:
+                                    st.markdown("**TCGplayer (cruda):**")
+                                    st.markdown(money(mk), unsafe_allow_html=True)
                                 sbg = (d.get("ebay") or {}).get("salesByGrade") or {}
                                 filas = []
                                 for g, v in sbg.items():
                                     if not isinstance(v, dict): continue
                                     emp, num = sep_grade(g)
-                                    filas.append({"Gradeadora": emp, "Grado": num, "Precio mediano USD": v.get("medianPrice"), "Ventas": v.get("count")})
+                                    filas.append({"Gradeadora": emp, "Grado": num, "_ord": v.get("medianPrice") or 0, "Precio (USD · MXN · JPY)": money_inline(v.get("medianPrice")), "Ventas": v.get("count")})
                                 if filas:
-                                    st.dataframe(pd.DataFrame(filas).sort_values("Precio mediano USD", ascending=False), use_container_width=True, hide_index=True)
+                                    dfg = pd.DataFrame(filas).sort_values("_ord", ascending=False).drop(columns=["_ord"])
+                                    st.dataframe(dfg, use_container_width=True, hide_index=True)
                                 else:
                                     st.caption("Sin datos de ventas gradeadas.")
                 except Exception as e:
@@ -186,10 +191,11 @@ with tab3:
                         if r.get("image_url"): st.image(r["image_url"], width=140)
                         st.markdown(f"**{r['name']}**")
                         st.caption(r["set_name"] or "")
-                        p10 = f"${r['psa10']:,.0f}" if pd.notna(r['psa10']) else "-"
-                        p9 = f"${r['psa9']:,.0f}" if pd.notna(r['psa9']) else "-"
-                        p8 = f"${r['psa8']:,.0f}" if pd.notna(r['psa8']) else "-"
-                        st.markdown(f"PSA 10: **{p10}**  \nPSA 9: {p9}  \nPSA 8: {p8}")
+                        st.markdown("**PSA 10:**")
+                        st.markdown(money(r['psa10']) if pd.notna(r['psa10']) else "-", unsafe_allow_html=True)
+                        p9 = money_inline(r['psa9']) if pd.notna(r['psa9']) else "-"
+                        p8 = money_inline(r['psa8']) if pd.notna(r['psa8']) else "-"
+                        st.markdown(f"<span style='font-size:13px; color:#6b5d3f;'>PSA 9: {p9}<br>PSA 8: {p8}</span>", unsafe_allow_html=True)
                         if pd.notna(r["salto_pct"]): st.markdown(f"🚀 Salto 9→10: **+{r['salto_pct']:.0f}%**")
             st.subheader("Tabla completa")
             st.dataframe(graded.rename(columns={"name":"Carta","set_name":"Set","psa10":"PSA 10","psa9":"PSA 9","psa8":"PSA 8","salto_pct":"Salto 9→10 %","ventas":"Ventas eBay"}).drop(columns=["image_url"]), use_container_width=True, hide_index=True)
