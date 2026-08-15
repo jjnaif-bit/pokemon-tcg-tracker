@@ -419,6 +419,12 @@ INSTRUCCIONES IMPORTANTES:
 - SIEMPRE menciona el GRADO (PSA 9, PSA 10 o CGC 10) de cada carta que recomiendes. Nunca digas solo el nombre sin el grado, porque el mismo Pokemon en PSA 9 vs PSA 10 son productos y precios distintos.
 - Para cada carta recomendada, calcula un PRECIO OBJETIVO DE COMPRA usando esta REGLA FIJA del negocio: es MUST-BUY si consigues la carta entre el 85% y 90% de su precio de mercado. Es decir, el precio objetivo = 85-90% del precio de mercado de esa carta (NO menos, seria irreal). Ejemplo: si el mercado es $40, el objetivo de compra es $34-$36. Formato: "Mercado $X -> compra si la consigues en $Y-$Z (85-90%)". Este es el margen real del arbitraje de gradeadas, no inventes descuentos mas grandes.
 
+FORMATO OBLIGATORIO (muy importante para que se vea bien en celular):
+- NUNCA uses el signo de dolar $. En su lugar escribe la cantidad seguida de USD. Ejemplo: "50 USD", NO "$50".
+- NO uses flechas como ->. Escribe la palabra.
+- NO uses formato matematico, cursivas raras, ni simbolos especiales. Solo texto normal y negritas simples.
+- Ejemplo correcto de una linea: "Mercado 59 USD, compra objetivo 50 a 53 USD (85-90 por ciento)".
+
 Estructura tu respuesta en espanol, concreta:
 1. TOP OPORTUNIDADES (agrupa como creas mejor, ej. por grado o por liquidez). Para cada una: nombre + GRADO + precio mercado + PRECIO OBJETIVO DE COMPRA + por que.
 2. ROTACION: cuales se venden mucho (comprar sin miedo) vs pocas ventas (riesgo de quedarse en stock).
@@ -432,7 +438,10 @@ Son sugerencias, no garantias."""
                             timeout=60,
                         )
                     if resp.status_code == 200:
-                        st.markdown(resp.json()["content"][0]["text"])
+                        texto_ia = resp.json()["content"][0]["text"]
+                        # Blindaje anti-LaTeX: escapar signos de dolar que rompen el render en movil
+                        texto_ia = texto_ia.replace("$", "")
+                        st.markdown(texto_ia)
                         st.caption("Analisis generado por Claude (Haiku). Verifica siempre con tu propio criterio.")
                     else:
                         st.error(f"Error API Anthropic (HTTP {resp.status_code}): {resp.text[:200]}")
