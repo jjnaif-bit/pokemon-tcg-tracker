@@ -15,7 +15,9 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] { gap: 8px; border-bottom: 2px solid #e8e0d0; }
     .stTabs [data-baseweb="tab"] { font-weight: 600; color: #6b5d3f; padding: 8px 16px; }
     .stTabs [aria-selected="true"] { color: #b8860b !important; }
-    .stButton>button { background: #1a1a1a; color: #d4af37; border: none; font-weight: 600; }
+    .stButton>button { background: #1a1a1a !important; color: #d4af37 !important; border: none; font-weight: 700; }
+    .stButton>button * { color: #d4af37 !important; }
+    .stButton>button p { color: #d4af37 !important; }
     .stDataFrame { border: 1px solid #e8e0d0; border-radius: 10px; }
     [data-testid="stCaptionContainer"] { color: #9a8d6f !important; font-size: 14px; }
     .stMarkdown p, .stMarkdown li { font-size: 16px; }
