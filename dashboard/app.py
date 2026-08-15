@@ -377,50 +377,45 @@ with tab6:
 
 with tab7:
     st.header("🤖 Sugerencias de compra (IA)")
-    st.caption("Claude analiza el mercado (solo PSA 9, PSA 10 y CGC 10) y sugiere oportunidades. Son sugerencias, no verdades: la decision final es tuya.")
-    st.info("💡 Cada analisis cuesta ~1 centavo de dolar. Se ejecuta solo cuando tocas el boton.")
-    if st.button("🔍 Analizar mercado ahora", type="primary"):
+    st.caption("Para arbitraje de PSA 9/10: que cartas en tu presupuesto se venden mas, para comprar y revender. Son sugerencias, no verdades.")
+    ccol1, ccol2 = st.columns(2)
+    pmin_ia = ccol1.number_input("Presupuesto min USD", min_value=1, value=1, step=10)
+    pmax_ia = ccol2.number_input("Presupuesto max USD", min_value=1, value=100, step=10)
+    st.info("💡 Cada analisis cuesta ~1 centavo. Se ejecuta solo cuando tocas el boton.")
+    if st.button("🔍 Analizar oportunidades de compra", type="primary"):
         api_key = st.secrets.get("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY"))
         if not api_key:
             st.error("Falta ANTHROPIC_API_KEY en los Secrets de Streamlit.")
         else:
             try:
                 datos = q("""
-                    SELECT c.name, c.set_name,
-                           MAX(CASE WHEN s.grade='psa10' THEN s.median_usd END) AS psa10,
-                           MAX(CASE WHEN s.grade='psa9'  THEN s.median_usd END) AS psa9,
-                           MAX(CASE WHEN s.grade='cgc10' THEN s.median_usd END) AS cgc10,
-                           MAX(s.sales_count) AS ventas,
-                           ROUND(100.0*(MAX(CASE WHEN s.grade='psa10' THEN s.median_usd END)-MAX(CASE WHEN s.grade='psa9' THEN s.median_usd END))/NULLIF(MAX(CASE WHEN s.grade='psa9' THEN s.median_usd END),0),0) AS salto
+                    SELECT c.name, c.set_name, s.grade, s.median_usd, s.sales_count
                     FROM graded_price_snapshots s JOIN graded_cards c ON c.tcgplayer_id=s.tcgplayer_id
                     WHERE s.captured_on = (SELECT MAX(captured_on) FROM graded_price_snapshots)
                       AND s.grade IN ('psa9','psa10','cgc10')
-                    GROUP BY c.name, c.set_name
-                    HAVING MAX(s.sales_count) IS NOT NULL
-                    ORDER BY ventas DESC NULLS LAST LIMIT 40
-                """)
+                      AND s.median_usd >= %(pmin)s AND s.median_usd <= %(pmax)s
+                      AND s.sales_count IS NOT NULL
+                    ORDER BY s.sales_count DESC NULLS LAST LIMIT 45
+                """, {"pmin": pmin_ia, "pmax": pmax_ia})
                 if datos.empty:
-                    st.warning("No hay datos suficientes para analizar.")
+                    st.warning(f"No hay cartas PSA9/10 o CGC10 entre ${pmin_ia} y ${pmax_ia}. Amplia el rango.")
                 else:
                     lineas = []
                     for _, r in datos.iterrows():
-                        p10 = f"${r['psa10']:.0f}" if pd.notna(r['psa10']) else "N/D"
-                        p9 = f"${r['psa9']:.0f}" if pd.notna(r['psa9']) else "N/D"
-                        cg = f"${r['cgc10']:.0f}" if pd.notna(r['cgc10']) else "N/D"
-                        salto = f"+{r['salto']:.0f}%" if pd.notna(r['salto']) else "N/D"
-                        lineas.append(f"- {r['name']} ({r['set_name']}): PSA10 {p10}, PSA9 {p9}, CGC10 {cg}, salto 9->10 {salto}, {int(r['ventas'])} ventas eBay")
-                    tabla_texto = "\\n".join(lineas)
-                    prompt = f"""Eres un asesor experto en compra de cartas Pokemon gradeadas para reventa. Analiza estos datos reales del mercado (precios de venta eBay por grado, en USD, solo PSA 9, PSA 10 y CGC 10) y da recomendaciones de compra concretas para un negocio en Mexico.
+                        g = r["grade"].upper().replace("PSA","PSA ").replace("CGC","CGC ")
+                        lineas.append(f"- {r['name']} ({r['set_name']}) {g}: precio ${r['median_usd']:.0f}, {int(r['sales_count'])} ventas eBay")
+                    tabla_texto = "\n".join(lineas)
+                    prompt = f"""Eres un asesor de arbitraje de cartas Pokemon gradeadas para un negocio en Mexico. El cliente COMPRA cartas PSA 9, PSA 10 y CGC 10 ya gradeadas, baratas, entre ${pmin_ia} y ${pmax_ia} USD, y las REVENDE mas caras. NO gradea cartas. Le interesa saber que comprar para revender rapido con buen margen.
 
-Datos del mercado hoy:
+Datos reales del mercado hoy (precio de venta eBay y numero de ventas por carta gradeada, en su rango de presupuesto):
 {tabla_texto}
 
-Da tu analisis en espanol, estructurado asi:
-1. TOP 3 OPORTUNIDADES DE COMPRA: las mejores cartas para comprar/gradear, con razon breve (salto 9->10 alto + muchas ventas = alta demanda y buen margen al gradear).
-2. CUIDADO CON: 2-3 cartas de riesgo (poco volumen, salto bajo, o precio inflado).
-3. UNA RECOMENDACION DE ESTRATEGIA general.
-Se concreto y breve. Recuerda que son sugerencias, no garantias."""
-                    with st.spinner("Claude esta analizando el mercado..."):
+Da tu analisis en espanol, concreto y accionable:
+1. TOP 5 PARA COMPRAR YA: las cartas con MAS ventas (mas liquidas, se revenden rapido) en su presupuesto. Di el precio de compra aproximado y por que.
+2. ROTACION RAPIDA vs LENTA: cuales se mueven mucho (comprar sin miedo) y cuales tienen pocas ventas (cuidado, se pueden quedar en stock).
+3. CONSEJO DE MARGEN: en cuales hay mejor oportunidad de comprar barato y revender con ganancia.
+Enfocate SOLO en comprar para revender, NO en gradear. Se breve. Son sugerencias, no garantias."""
+                    with st.spinner("Claude esta analizando oportunidades..."):
                         resp = _rq.post(
                             "https://api.anthropic.com/v1/messages",
                             headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
@@ -428,10 +423,9 @@ Se concreto y breve. Recuerda que son sugerencias, no garantias."""
                             timeout=60,
                         )
                     if resp.status_code == 200:
-                        texto = resp.json()["content"][0]["text"]
-                        st.markdown(texto)
+                        st.markdown(resp.json()["content"][0]["text"])
                         st.caption("Analisis generado por Claude (Haiku). Verifica siempre con tu propio criterio.")
                     else:
-                        st.error(f"Error de la API de Anthropic (HTTP {resp.status_code}): {resp.text[:200]}")
+                        st.error(f"Error API Anthropic (HTTP {resp.status_code}): {resp.text[:200]}")
             except Exception as e:
                 st.error(f"Error al analizar: {str(e)[:200]}")
