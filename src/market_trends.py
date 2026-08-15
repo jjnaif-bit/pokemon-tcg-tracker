@@ -37,13 +37,21 @@ def connect():
 def simplificar(nombre):
     n = (nombre or "").lower()
     n = re.sub(r"\d+/\d+", " ", n)
-    n = re.sub(r"\([^)]*\)", " ", n)
     n = re.sub(r"[-/]", " ", n)
     n = re.sub(r"\b[a-z]{1,3}\d+\b", " ", n)
+    conservar = ["vmax","vstar","ex","gx","v","alt","art","secret","full","alternate","shining","mega"]
+    m = re.findall(r"\(([^)]*)\)", n)
+    extra = []
+    for grupo in m:
+        for w in grupo.split():
+            if w in conservar:
+                extra.append(w)
+    n = re.sub(r"\([^)]*\)", " ", n)
     n = n.replace("'s", "")
     n = re.sub(r"\b\d+\b", " ", n)
     n = re.sub(r"\s+", " ", n).strip()
-    return " ".join(n.split()[:3])
+    palabras = n.split() + [e for e in extra if e not in n.split()]
+    return " ".join(palabras[:4])
 
 def cartas_top(conn):
     with conn.cursor() as cur:
