@@ -57,6 +57,12 @@ def sep_grade(g):
     if len(num) == 2 and num != "10": num = num[0] + "." + num[1]
     return (emp, num)
 
+import os as _os
+_logo = _os.path.join(_os.path.dirname(__file__), "logo.png")
+if _os.path.exists(_logo):
+    _lc = st.columns([1, 3, 1])
+    with _lc[1]:
+        st.image(_logo, use_container_width=True)
 st.title("🔥 Toshi Collectibles — Radar de mercado Pokemon")
 st.caption("Cartas mas vendidas + precios gradeados PSA/CGC/BGS (venta real eBay, USD)")
 
