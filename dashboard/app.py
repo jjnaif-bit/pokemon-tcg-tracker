@@ -377,7 +377,7 @@ with tab6:
 
 with tab7:
     st.header("🤖 Sugerencias de compra (IA)")
-    st.caption("Para arbitraje de PSA 9/10: que cartas en tu presupuesto se venden mas, para comprar y revender. Son sugerencias, no verdades.")
+    st.caption("Arbitraje PSA 9/10 y CGC 10: que comprar, a que precio objetivo, para revender. Son sugerencias, no verdades.")
     ccol1, ccol2 = st.columns(2)
     pmin_ia = ccol1.number_input("Presupuesto min USD", min_value=1, value=1, step=10)
     pmax_ia = ccol2.number_input("Presupuesto max USD", min_value=1, value=100, step=10)
@@ -389,7 +389,7 @@ with tab7:
         else:
             try:
                 datos = q("""
-                    SELECT c.name, c.set_name, s.grade, s.median_usd, s.sales_count
+                    SELECT c.name, c.set_name, s.grade, s.median_usd, s.average_usd, s.sales_count
                     FROM graded_price_snapshots s JOIN graded_cards c ON c.tcgplayer_id=s.tcgplayer_id
                     WHERE s.captured_on = (SELECT MAX(captured_on) FROM graded_price_snapshots)
                       AND s.grade IN ('psa9','psa10','cgc10')
@@ -400,26 +400,35 @@ with tab7:
                 if datos.empty:
                     st.warning(f"No hay cartas PSA9/10 o CGC10 entre ${pmin_ia} y ${pmax_ia}. Amplia el rango.")
                 else:
+                    def et(g):
+                        g = g.lower()
+                        if g == "psa10": return "PSA 10"
+                        if g == "psa9": return "PSA 9"
+                        if g == "cgc10": return "CGC 10"
+                        return g.upper()
                     lineas = []
                     for _, r in datos.iterrows():
-                        g = r["grade"].upper().replace("PSA","PSA ").replace("CGC","CGC ")
-                        lineas.append(f"- {r['name']} ({r['set_name']}) {g}: precio ${r['median_usd']:.0f}, {int(r['sales_count'])} ventas eBay")
+                        lineas.append(f"- {r['name']} ({r['set_name']}) | GRADO: {et(r['grade'])} | precio mercado (mediana venta eBay): ${r['median_usd']:.0f} | ventas: {int(r['sales_count'])}")
                     tabla_texto = "\n".join(lineas)
-                    prompt = f"""Eres un asesor de arbitraje de cartas Pokemon gradeadas para un negocio en Mexico. El cliente COMPRA cartas PSA 9, PSA 10 y CGC 10 ya gradeadas, baratas, entre ${pmin_ia} y ${pmax_ia} USD, y las REVENDE mas caras. NO gradea cartas. Le interesa saber que comprar para revender rapido con buen margen.
+                    prompt = f"""Eres un asesor de arbitraje de cartas Pokemon gradeadas para un negocio en Mexico. El cliente COMPRA cartas gradeadas (PSA 9, PSA 10, CGC 10) baratas entre ${pmin_ia} y ${pmax_ia} USD y las REVENDE mas caras. NO gradea. Quiere saber que comprar y a que precio objetivo.
 
-Datos reales del mercado hoy (precio de venta eBay y numero de ventas por carta gradeada, en su rango de presupuesto):
+Datos reales del mercado hoy. Cada linea trae el GRADO explicito, el precio de mercado (mediana de venta en eBay) y el numero de ventas:
 {tabla_texto}
 
-Da tu analisis en espanol, concreto y accionable:
-1. TOP 5 PARA COMPRAR YA: las cartas con MAS ventas (mas liquidas, se revenden rapido) en su presupuesto. Di el precio de compra aproximado y por que.
-2. ROTACION RAPIDA vs LENTA: cuales se mueven mucho (comprar sin miedo) y cuales tienen pocas ventas (cuidado, se pueden quedar en stock).
-3. CONSEJO DE MARGEN: en cuales hay mejor oportunidad de comprar barato y revender con ganancia.
-Enfocate SOLO en comprar para revender, NO en gradear. Se breve. Son sugerencias, no garantias."""
+INSTRUCCIONES IMPORTANTES:
+- SIEMPRE menciona el GRADO (PSA 9, PSA 10 o CGC 10) de cada carta que recomiendes. Nunca digas solo el nombre sin el grado, porque el mismo Pokemon en PSA 9 vs PSA 10 son productos y precios distintos.
+- Para cada carta recomendada, calcula un PRECIO OBJETIVO DE COMPRA: el precio maximo al que conviene comprarla para revender con buen margen. Basate en el precio de mercado y en la liquidez (mas ventas = puedes pagar un poco mas porque se revende rapido; pocas ventas = exige mas descuento). Formato: "si la consigues por debajo de $X, comprala".
+
+Estructura tu respuesta en espanol, concreta:
+1. TOP OPORTUNIDADES (agrupa como creas mejor, ej. por grado o por liquidez). Para cada una: nombre + GRADO + precio mercado + PRECIO OBJETIVO DE COMPRA + por que.
+2. ROTACION: cuales se venden mucho (comprar sin miedo) vs pocas ventas (riesgo de quedarse en stock).
+3. CONSEJO FINAL breve.
+Son sugerencias, no garantias."""
                     with st.spinner("Claude esta analizando oportunidades..."):
                         resp = _rq.post(
                             "https://api.anthropic.com/v1/messages",
                             headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                            json={"model": "claude-haiku-4-5-20251001", "max_tokens": 1500, "messages": [{"role": "user", "content": prompt}]},
+                            json={"model": "claude-haiku-4-5-20251001", "max_tokens": 1800, "messages": [{"role": "user", "content": prompt}]},
                             timeout=60,
                         )
                     if resp.status_code == 200:
