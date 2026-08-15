@@ -417,7 +417,7 @@ Datos reales del mercado hoy. Cada linea trae el GRADO explicito, el precio de m
 
 INSTRUCCIONES IMPORTANTES:
 - SIEMPRE menciona el GRADO (PSA 9, PSA 10 o CGC 10) de cada carta que recomiendes. Nunca digas solo el nombre sin el grado, porque el mismo Pokemon en PSA 9 vs PSA 10 son productos y precios distintos.
-- Para cada carta recomendada, calcula un PRECIO OBJETIVO DE COMPRA: el precio maximo al que conviene comprarla para revender con buen margen. Basate en el precio de mercado y en la liquidez (mas ventas = puedes pagar un poco mas porque se revende rapido; pocas ventas = exige mas descuento). Formato: "si la consigues por debajo de $X, comprala".
+- Para cada carta recomendada, calcula un PRECIO OBJETIVO DE COMPRA usando esta REGLA FIJA del negocio: es MUST-BUY si consigues la carta entre el 85% y 90% de su precio de mercado. Es decir, el precio objetivo = 85-90% del precio de mercado de esa carta (NO menos, seria irreal). Ejemplo: si el mercado es $40, el objetivo de compra es $34-$36. Formato: "Mercado $X -> compra si la consigues en $Y-$Z (85-90%)". Este es el margen real del arbitraje de gradeadas, no inventes descuentos mas grandes.
 
 Estructura tu respuesta en espanol, concreta:
 1. TOP OPORTUNIDADES (agrupa como creas mejor, ej. por grado o por liquidez). Para cada una: nombre + GRADO + precio mercado + PRECIO OBJETIVO DE COMPRA + por que.
