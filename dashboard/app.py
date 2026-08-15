@@ -32,6 +32,38 @@ def q(sql, params=None):
     with psycopg2.connect(dsn()) as conn:
         return pd.read_sql(sql, conn, params=params)
 
+@st.cache_data(ttl=43200)
+def get_fx():
+    try:
+        r = _rq.get("https://api.exchangerate.fun/latest", params={"base": "USD"}, timeout=15)
+        rates = r.json().get("rates", {})
+        return float(rates.get("MXN") or 18.5), float(rates.get("JPY") or 150)
+    except Exception:
+        return 18.5, 150
+
+def money(usd):
+    if usd is None:
+        return "-"
+    try:
+        usd = float(usd)
+    except (TypeError, ValueError):
+        return "-"
+    mxn, jpy = get_fx()
+    return (f"<div style='line-height:1.3'>"
+            f"<span style='font-size:22px; font-weight:800; color:#1a1a1a;'>US${usd:,.2f}</span><br>"
+            f"<span style='font-size:15px; color:#6b5d3f;'>MX${usd*mxn:,.0f} &nbsp;·&nbsp; ¥{usd*jpy:,.0f}</span>"
+            f"</div>")
+
+def money_inline(usd):
+    if usd is None:
+        return "-"
+    try:
+        usd = float(usd)
+    except (TypeError, ValueError):
+        return "-"
+    mxn, jpy = get_fx()
+    return f"US${usd:,.2f} · MX${usd*mxn:,.0f} · ¥{usd*jpy:,.0f}"
+
 def guardar_busqueda(d):
     """Guarda una carta buscada en la base, para el archivo historico."""
     try:
