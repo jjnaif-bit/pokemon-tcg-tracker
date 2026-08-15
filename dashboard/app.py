@@ -74,13 +74,13 @@ def sep_grade(g):
 
 import os as _os
 _logo = _os.path.join(_os.path.dirname(__file__), "logo.png")
-_hc = st.columns([1, 6])
+_hc = st.columns([1, 9])
 with _hc[0]:
     if _os.path.exists(_logo):
-        st.image(_logo, width=95)
+        st.image(_logo, width=90)
 with _hc[1]:
-    st.markdown("<h1 style='margin-bottom:0; padding-top:18px;'>Toshi Collectibles</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#9a8d6f; margin-top:0; font-size:15px;'>Radar de mercado Pokemon</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='margin-bottom:0; padding-top:22px; margin-left:-30px;'>Toshi Collectibles</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#9a8d6f; margin-top:0; margin-left:-30px; font-size:15px;'>Radar de mercado Pokemon</p>", unsafe_allow_html=True)
 st.caption("Cartas mas vendidas + precios gradeados PSA/CGC/BGS (venta real eBay, USD)")
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar", "🔥 Mas vendidas", "💎 TCGplayer", "🇲🇽 Google Trends", "📅 Historico"])
@@ -151,10 +151,11 @@ with tab2:
             emp_sel = c1.selectbox("Gradeadora", empresas, index=empresas.index("PSA") if "PSA" in empresas else 0)
             grados_disp = sorted(base[base["empresa"]==emp_sel]["num_grado"].unique().tolist(), reverse=True)
             grado_sel = c2.selectbox("Grado", grados_disp)
-            tope = int(base["median_usd"].max()) + 1
-            rango = c3.slider("Presupuesto USD", 0, tope, (10, min(100, tope)))
-            filtro = base[(base["empresa"]==emp_sel) & (base["num_grado"]==grado_sel) & (base["median_usd"]>=rango[0]) & (base["median_usd"]<=rango[1])].sort_values("sales_count", ascending=False, na_position="last")
-            st.markdown(f"**{len(filtro)} cartas** con {emp_sel} {grado_sel} entre ${rango[0]} y ${rango[1]}")
+            cmin, cmax = c3.columns(2)
+            precio_min = cmin.number_input("Min USD", min_value=1, value=1, step=5)
+            precio_max = cmax.number_input("Max USD", min_value=1, value=100, step=5)
+            filtro = base[(base["empresa"]==emp_sel) & (base["num_grado"]==grado_sel) & (base["median_usd"]>=precio_min) & (base["median_usd"]<=precio_max)].sort_values("sales_count", ascending=False, na_position="last")
+            st.markdown(f"**{len(filtro)} cartas** con {emp_sel} {grado_sel} entre ${precio_min} y ${precio_max}")
             if not filtro.empty:
                 st.dataframe(filtro[["name","set_name","median_usd","sales_count"]].rename(columns={"name":"Carta","set_name":"Set","median_usd":f"Precio {emp_sel} {grado_sel}","sales_count":"Ventas eBay"}), use_container_width=True, hide_index=True)
             else:
