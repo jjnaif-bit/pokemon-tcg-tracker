@@ -285,24 +285,46 @@ with tab4:
         st.caption("TCGplayer no disponible.")
 
 with tab5:
-    st.header("Interes de busqueda en Mexico")
-    st.caption("100 = pico de ese termino en el periodo.")
+    st.header("Interes en Mexico de lo que se vende")
+    st.caption("Cruce: las cartas que MAS se venden en el mercado + cuanto se buscan en Google Mexico. 100 = pico de ese termino.")
     try:
-        tt = q("SELECT DISTINCT t.term, w.label FROM trends_snapshots t JOIN trends_watch_terms w ON w.term=t.term ORDER BY w.label")
-        if not tt.empty:
-            eleg = st.multiselect("Terminos", tt["label"].tolist(), default=tt["label"].tolist()[:4])
-            if eleg:
-                terms = tt[tt["label"].isin(eleg)]["term"].tolist()
-                serie = q("SELECT t.trend_date, w.label, t.interest FROM trends_snapshots t JOIN trends_watch_terms w ON w.term=t.term WHERE t.term = ANY(%(t)s) ORDER BY t.trend_date", {"t": terms})
-                if not serie.empty:
-                    st.line_chart(serie.pivot_table(index="trend_date", columns="label", values="interest"))
-            prom = q("SELECT w.label, ROUND(AVG(t.interest),1) AS p FROM trends_snapshots t JOIN trends_watch_terms w ON w.term=t.term GROUP BY w.label ORDER BY p DESC")
-            st.bar_chart(prom.set_index("label")["p"])
+        cruce = q("""
+            SELECT DISTINCT ON (mt.card_name) mt.card_name, mt.search_term,
+                   AVG(mt.interest_mx) OVER (PARTITION BY mt.search_term) AS interes_prom
+            FROM market_trends mt
+            WHERE mt.captured_on = (SELECT MAX(captured_on) FROM market_trends)
+            ORDER BY mt.card_name, mt.trend_date DESC
+        """)
+        ventas = q("""
+            SELECT c.name AS card_name, MAX(s.sales_count) AS ventas
+            FROM graded_cards c JOIN graded_price_snapshots s ON s.tcgplayer_id=c.tcgplayer_id
+            WHERE s.captured_on = (SELECT MAX(captured_on) FROM graded_price_snapshots)
+            GROUP BY c.name
+        """)
+        if cruce.empty:
+            st.info("Aun no hay datos del cruce. Corre el modulo market_trends.")
         else:
-            st.caption("Aun no hay datos de Google Trends.")
+            import pandas as _pd
+            tabla = cruce.merge(ventas, on="card_name", how="left")
+            tabla["interes_prom"] = tabla["interes_prom"].round(0)
+            tabla = tabla.sort_values("ventas", ascending=False, na_position="last")
+            st.subheader("Ranking: se venden Y se buscan")
+            st.dataframe(tabla[["card_name","ventas","interes_prom"]].rename(columns={"card_name":"Carta","ventas":"Ventas eBay","interes_prom":"Interes Mexico (0-100)"}), use_container_width=True, hide_index=True)
+            st.subheader("Ver evolucion en Mexico")
+            opciones = sorted(cruce["card_name"].tolist())
+            elegidas = st.multiselect("Cartas a comparar", opciones, default=opciones[:4], max_selections=5)
+            if elegidas:
+                terms = cruce[cruce["card_name"].isin(elegidas)]["search_term"].tolist()
+                serie = q("""
+                    SELECT trend_date, card_name, interest_mx
+                    FROM market_trends
+                    WHERE search_term = ANY(%(t)s) AND captured_on = (SELECT MAX(captured_on) FROM market_trends)
+                    ORDER BY trend_date
+                """, {"t": terms})
+                if not serie.empty:
+                    st.line_chart(serie.pivot_table(index="trend_date", columns="card_name", values="interest_mx"))
     except Exception as e:
-        st.caption("Google Trends no disponible.")
-
+        st.caption("Cruce no disponible: " + str(e)[:100])
 
 with tab6:
     st.header("Historico de precios")
