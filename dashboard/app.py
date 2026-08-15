@@ -60,8 +60,13 @@ def sep_grade(g):
 import os as _os
 _logo = _os.path.join(_os.path.dirname(__file__), "logo.png")
 if _os.path.exists(_logo):
-    st.image(_logo, width=180)
-st.title("🔥 Toshi Collectibles — Radar de mercado Pokemon")
+    _hc = st.columns([1, 5])
+    with _hc[0]:
+        st.image(_logo, width=110)
+    with _hc[1]:
+        st.title("🔥 Toshi Collectibles — Radar de mercado Pokemon")
+else:
+    st.title("🔥 Toshi Collectibles — Radar de mercado Pokemon")
 st.caption("Cartas mas vendidas + precios gradeados PSA/CGC/BGS (venta real eBay, USD)")
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar", "🔥 Mas vendidas", "💎 TCGplayer", "🇲🇽 Google Trends", "📅 Historico"])
