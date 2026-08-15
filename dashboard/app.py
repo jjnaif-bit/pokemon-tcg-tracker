@@ -7,6 +7,21 @@ import streamlit as st
 
 st.set_page_config(page_title="Toshi - Radar Pokemon", page_icon="🔥", layout="wide")
 
+st.markdown("""
+<style>
+    .stApp { background: #faf8f5; }
+    h1 { color: #1a1a1a !important; font-weight: 800 !important; letter-spacing: -0.5px; }
+    h2, h3 { color: #8a6d1f !important; font-weight: 700 !important; }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; border-bottom: 2px solid #e8e0d0; }
+    .stTabs [data-baseweb="tab"] { font-weight: 600; color: #6b5d3f; padding: 8px 16px; }
+    .stTabs [aria-selected="true"] { color: #b8860b !important; }
+    .stButton>button { background: #1a1a1a; color: #d4af37; border: none; font-weight: 600; }
+    .stDataFrame { border: 1px solid #e8e0d0; border-radius: 10px; }
+    [data-testid="stCaptionContainer"] { color: #9a8d6f !important; }
+    #MainMenu {visibility: hidden;} footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
 def dsn():
     return st.secrets.get("DATABASE_URL", os.environ.get("DATABASE_URL"))
 
@@ -59,14 +74,13 @@ def sep_grade(g):
 
 import os as _os
 _logo = _os.path.join(_os.path.dirname(__file__), "logo.png")
-if _os.path.exists(_logo):
-    _hc = st.columns([1, 5])
-    with _hc[0]:
-        st.image(_logo, width=110)
-    with _hc[1]:
-        st.title("🔥 Toshi Collectibles — Radar de mercado Pokemon")
-else:
-    st.title("🔥 Toshi Collectibles — Radar de mercado Pokemon")
+_hc = st.columns([1, 6])
+with _hc[0]:
+    if _os.path.exists(_logo):
+        st.image(_logo, width=95)
+with _hc[1]:
+    st.markdown("<h1 style='margin-bottom:0; padding-top:18px;'>Toshi Collectibles</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#9a8d6f; margin-top:0; font-size:15px;'>Radar de mercado Pokemon</p>", unsafe_allow_html=True)
 st.caption("Cartas mas vendidas + precios gradeados PSA/CGC/BGS (venta real eBay, USD)")
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar", "🔥 Mas vendidas", "💎 TCGplayer", "🇲🇽 Google Trends", "📅 Historico"])
