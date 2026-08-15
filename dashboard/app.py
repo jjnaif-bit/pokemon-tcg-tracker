@@ -19,7 +19,8 @@ st.markdown("""
     .stDataFrame { border: 1px solid #e8e0d0; border-radius: 10px; }
     [data-testid="stCaptionContainer"] { color: #9a8d6f !important; font-size: 14px; }
     .stMarkdown p, .stMarkdown li { font-size: 16px; }
-    [data-testid="stDataFrame"] { font-size: 15px; }
+    [data-testid="stDataFrame"] { font-size: 17px; }
+    [data-testid="stDataFrame"] * { font-size: 16px !important; }
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
@@ -191,10 +192,11 @@ with tab2:
             cmin, cmax = c3.columns(2)
             precio_min = cmin.number_input("Min USD", min_value=1, value=1, step=5)
             precio_max = cmax.number_input("Max USD", min_value=1, value=100, step=5)
-            filtro = base[(base["empresa"]==emp_sel) & (base["num_grado"]==grado_sel) & (base["median_usd"]>=precio_min) & (base["median_usd"]<=precio_max)].sort_values("sales_count", ascending=False, na_position="last")
-            st.markdown(f"**{len(filtro)} cartas** con {emp_sel} {grado_sel} entre ${precio_min} y ${precio_max}")
+            filtro = base[(base["empresa"]==emp_sel) & (base["num_grado"]==grado_sel) & (base["median_usd"]>=precio_min) & (base["median_usd"]<=precio_max)].sort_values("sales_count", ascending=False, na_position="last").copy()
+            st.markdown(f"**{len(filtro)} cartas** con {emp_sel} {grado_sel} entre US${precio_min} y US${precio_max}")
             if not filtro.empty:
-                st.dataframe(filtro[["name","set_name","median_usd","sales_count"]].rename(columns={"name":"Carta","set_name":"Set","median_usd":f"Precio {emp_sel} {grado_sel}","sales_count":"Ventas eBay"}), use_container_width=True, hide_index=True)
+                filtro["Precio (USD · MXN · JPY)"] = filtro["median_usd"].apply(money_inline)
+                st.dataframe(filtro[["name","set_name","Precio (USD · MXN · JPY)","sales_count"]].rename(columns={"name":"Carta","set_name":"Set","sales_count":"Ventas eBay"}), use_container_width=True, hide_index=True)
             else:
                 st.info("Ninguna en ese rango.")
     except Exception as e:
