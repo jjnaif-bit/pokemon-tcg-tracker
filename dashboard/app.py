@@ -21,6 +21,10 @@ st.markdown("""
     .stMarkdown p, .stMarkdown li { font-size: 16px; }
     [data-testid="stDataFrame"] { font-size: 17px; }
     [data-testid="stDataFrame"] * { font-size: 16px !important; }
+    .stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span { color: #1a1a1a !important; }
+    .stMarkdown strong { color: #1a1a1a !important; }
+    p, li, span, div { color: #1a1a1a; }
+    h2, h3 { color: #8a6d1f !important; }
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
