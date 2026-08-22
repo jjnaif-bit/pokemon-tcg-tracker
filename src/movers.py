@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(
 log = logging.getLogger("movers")
 
 BASE = "https://www.pokemonpricetracker.com/api/v2"
-CATEGORIAS = ["mostActive", "volumeMovers"]
+CATEGORIAS = ["mostActive", "volumeMovers", "percentageGainers", "percentageDroppers", "dollarGainers", "dollarDroppers", "newHighs", "newLows", "volatilityLeaders", "risingStars", "fallingKnives"]
 CUANTAS = 100
 PAUSA = 2
 
