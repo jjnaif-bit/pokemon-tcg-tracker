@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(
 log = logging.getLogger("sets")
 
 BASE = "https://www.pokemonpricetracker.com/api/v2"
-PAUSA = 1.2
+PAUSA = 2.0
 PAGINA = 50
 
 SETS = [
@@ -48,10 +48,22 @@ def _num(v):
     except (TypeError, ValueError): return None
 
 def cartas_de_set(session, set_name):
-    """Baja todas las cartas de un set, paginando."""
+    """Baja todas las cartas de un set, paginando. Reintenta si hay 429."""
     todas, offset = [], 0
     while True:
-        r = session.get(f"{BASE}/cards", params={"setName": set_name, "limit": PAGINA, "offset": offset, "includeEbay": "true"}, timeout=40)
+        intentos = 0
+        while True:
+            r = session.get(f"{BASE}/cards", params={"setName": set_name, "limit": PAGINA, "offset": offset, "includeEbay": "true"}, timeout=40)
+            if r.status_code == 429:
+                intentos += 1
+                if intentos > 5:
+                    log.warning("   429 persistente en %s offset %s, salto set", set_name, offset)
+                    return todas
+                espera = 30 * intentos
+                log.info("   429, esperando %ss antes de reintentar...", espera)
+                time.sleep(espera)
+                continue
+            break
         if r.status_code != 200:
             log.warning("   HTTP %s en %s offset %s", r.status_code, set_name, offset)
             break
@@ -104,6 +116,7 @@ def main():
     with connect() as conn:
         for set_name in SETS:
             log.info("=== Set: %s ===", set_name)
+            time.sleep(15)
             try:
                 cartas = cartas_de_set(session, set_name)
                 log.info("   %s cartas encontradas", len(cartas))
