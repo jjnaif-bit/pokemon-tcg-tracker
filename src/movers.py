@@ -13,8 +13,8 @@ log = logging.getLogger("movers")
 
 BASE = "https://www.pokemonpricetracker.com/api/v2"
 CATEGORIAS = ["mostActive", "volumeMovers", "percentageGainers", "percentageDroppers", "dollarGainers", "dollarDroppers", "newHighs", "newLows", "volatilityLeaders", "risingStars", "fallingKnives"]
-CUANTAS = 100
-PAUSA = 2
+CUANTAS = 250
+PAUSA = 1.2
 
 def _dsn():
     dsn = os.environ.get("DATABASE_URL")
