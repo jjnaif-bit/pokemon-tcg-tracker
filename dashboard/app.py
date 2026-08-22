@@ -124,7 +124,7 @@ with _hc[1]:
     st.markdown("<p style='color:#9a8d6f; margin-top:0; margin-left:-30px; font-size:15px;'>Radar de mercado Pokemon</p>", unsafe_allow_html=True)
 st.caption("Cartas mas vendidas + precios gradeados PSA/CGC/BGS (venta real eBay, USD)")
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar", "🔥 Mas vendidas", "💎 TCGplayer", "🇲🇽 Google Trends", "📅 Historico", "🤖 Sugerencias IA"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar", "🔥 Mas vendidas", "💎 TCGplayer", "🇲🇽 Google Trends", "📅 Historico", "🤖 Sugerencias IA", "📉 Bajaron 7d"])
 
 with tab1:
     st.header("Buscar cualquier carta del catalogo")
@@ -453,3 +453,62 @@ Son sugerencias, no garantias."""
                         st.error(f"Error API Anthropic (HTTP {resp.status_code}): {resp.text[:200]}")
             except Exception as e:
                 st.error(f"Error al analizar: {str(e)[:200]}")
+
+
+with tab8:
+    st.header("📉 Cartas que mas bajaron (7 dias)")
+    st.caption("Oportunidades: cartas que cayeron de precio y podrian rebotar. Precio de hoy vs ~7 dias atras.")
+    try:
+        bajaron = q("""
+            WITH reciente AS (
+                SELECT tcgplayer_id, grade, median_usd,
+                       ROW_NUMBER() OVER (PARTITION BY tcgplayer_id, grade ORDER BY captured_on DESC) AS rn
+                FROM graded_price_snapshots WHERE median_usd IS NOT NULL
+            ),
+            hace7 AS (
+                SELECT tcgplayer_id, grade, median_usd,
+                       ROW_NUMBER() OVER (PARTITION BY tcgplayer_id, grade ORDER BY captured_on ASC) AS rn
+                FROM graded_price_snapshots
+                WHERE median_usd IS NOT NULL AND captured_on >= CURRENT_DATE - INTERVAL '8 days'
+            )
+            SELECT c.name, c.set_name, r.grade, h.median_usd AS antes, r.median_usd AS ahora,
+                   ROUND(100.0*(r.median_usd - h.median_usd)/NULLIF(h.median_usd,0),1) AS cambio_pct
+            FROM reciente r
+            JOIN hace7 h ON h.tcgplayer_id=r.tcgplayer_id AND h.grade=r.grade AND h.rn=1
+            JOIN graded_cards c ON c.tcgplayer_id=r.tcgplayer_id
+            WHERE r.rn=1 AND r.median_usd IS NOT NULL
+        """)
+    except Exception as e:
+        bajaron = None
+        st.caption("Analisis no disponible: " + str(e)[:100])
+
+    if bajaron is not None and not bajaron.empty:
+        bajaron[["empresa","num_grado"]] = bajaron["grade"].apply(lambda g: pd.Series(sep_grade(g)))
+        f1, f2, f3, f4 = st.columns(4)
+        empresas = sorted(bajaron["empresa"].unique().tolist())
+        emp_b = f1.selectbox("Gradeadora", ["Todas"] + empresas, key="emp_baja")
+        if emp_b != "Todas":
+            grados_b = sorted(bajaron[bajaron["empresa"]==emp_b]["num_grado"].unique().tolist(), reverse=True)
+        else:
+            grados_b = sorted(bajaron["num_grado"].unique().tolist(), reverse=True)
+        grado_b = f2.selectbox("Grado", ["Todos"] + grados_b, key="grado_baja")
+        pmin_b = f3.number_input("Min USD", min_value=0, value=0, step=10, key="pmin_baja")
+        pmax_b = f4.number_input("Max USD", min_value=0, value=1000, step=10, key="pmax_baja")
+        filt = bajaron[bajaron["cambio_pct"] < 0].copy()
+        if emp_b != "Todas":
+            filt = filt[filt["empresa"]==emp_b]
+        if grado_b != "Todos":
+            filt = filt[filt["num_grado"]==grado_b]
+        filt = filt[(filt["ahora"]>=pmin_b) & (filt["ahora"]<=pmax_b)]
+        filt = filt.sort_values("cambio_pct").head(30)
+        st.markdown(f"**{len(filt)} cartas** que bajaron")
+        if filt.empty:
+            st.info("Ninguna carta bajo con esos filtros. Amplia el rango o cambia el grado.")
+        else:
+            filt["Grado"] = filt["empresa"] + " " + filt["num_grado"]
+            filt["Antes"] = filt["antes"].apply(money_inline)
+            filt["Ahora"] = filt["ahora"].apply(money_inline)
+            filt["Cambio"] = filt["cambio_pct"].apply(lambda x: f"{x:.1f}%")
+            st.dataframe(filt[["name","set_name","Grado","Antes","Ahora","Cambio"]].rename(columns={"name":"Carta","set_name":"Set"}), use_container_width=True, hide_index=True)
+    elif bajaron is not None:
+        st.info("Aun no hay suficiente historia para comparar. Espera unos dias mas de datos.")
