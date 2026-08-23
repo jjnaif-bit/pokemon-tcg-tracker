@@ -26,6 +26,16 @@ SETS = [
     "Lost Origin",
     "Brilliant Stars",
     "Paradox Rift",
+    "Paldea Evolved",
+    "Scarlet & Violet",
+    "Temporal Forces",
+    "Twilight Masquerade",
+    "Shrouded Fable",
+    "Stellar Crown",
+    "Fusion Strike",
+    "Celebrations",
+    "Chilling Reign",
+    "Vivid Voltage",
 ]
 
 def _dsn():
