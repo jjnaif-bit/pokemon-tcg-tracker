@@ -36,6 +36,16 @@ SETS = [
     "Celebrations",
     "Chilling Reign",
     "Vivid Voltage",
+    "Hidden Fates",
+    "Champion's Path",
+    "Shining Fates",
+    "Astral Radiance",
+    "Silver Tempest",
+    "Cosmic Eclipse",
+    "Unified Minds",
+    "Darkness Ablaze",
+    "Battle Styles",
+    "Pokemon GO",
 ]
 
 def _dsn():
