@@ -124,6 +124,36 @@ with _hc[1]:
     st.markdown("<p style='color:#9a8d6f; margin-top:0; margin-left:-30px; font-size:15px;'>Radar de mercado Pokemon</p>", unsafe_allow_html=True)
 st.caption("Cartas mas vendidas + precios gradeados PSA/CGC/BGS (venta real eBay, USD)")
 
+# ---------------- Filtro global por año del set ----------------
+@st.cache_data(ttl=3600)
+def rango_anos():
+    try:
+        d = q("SELECT MIN(year) AS mn, MAX(year) AS mx FROM set_years WHERE year IS NOT NULL")
+        return int(d["mn"].iloc[0]), int(d["mx"].iloc[0])
+    except Exception:
+        return 1999, 2026
+
+_amin, _amax = rango_anos()
+_ini = 2010 if _amin <= 2010 <= _amax else _amin
+_fc1, _fc2 = st.columns([3, 1])
+ANO_INI, ANO_FIN = _fc1.slider("Año del set", min_value=_amin, max_value=_amax,
+                               value=(_ini, _amax), step=1)
+SIN_ANO = _fc2.checkbox("Incluir promos sin año", value=False,
+                        help="Promos que abarcan varios años (SM Promos, Jumbo Cards, League & Championship, etc.)")
+st.caption(f"Filtrando sets de {ANO_INI} a {ANO_FIN}" + (" + promos sin año" if SIN_ANO else ""))
+st.divider()
+
+def cond_ano(alias="c"):
+    """Condicion SQL para limitar por año del set. alias = tabla de cartas."""
+    c = f"{alias}.set_name IN (SELECT set_name FROM set_years WHERE year BETWEEN {ANO_INI} AND {ANO_FIN})"
+    if SIN_ANO:
+        c = f"({c} OR {alias}.set_name IN (SELECT set_name FROM set_years WHERE year IS NULL))"
+    return c
+
+def col_ano(s):
+    """Formatea la columna de año para mostrarla."""
+    return "-" if pd.isna(s) else str(int(s))
+
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["🔍 Buscar carta", "🎯 Que comprar", "🔥 Mas vendidas", "💎 TCGplayer", "🇲🇽 Google Trends", "📅 Historico", "🤖 Sugerencias IA", "📉 Bajaron 7d"])
 
 with tab1:
@@ -181,10 +211,12 @@ with tab2:
     st.header("Que comprar — filtro por presupuesto")
     st.caption("Filtra por presupuesto, gradeadora y grado. Ordenadas por ventas.")
     try:
-        base = q("""
-            SELECT c.name, c.set_name, s.grade, s.median_usd, s.sales_count
+        base = q(f"""
+            SELECT c.name, c.set_name, sy.year AS ano, s.grade, s.median_usd, s.sales_count
             FROM graded_price_snapshots s JOIN graded_cards c ON c.tcgplayer_id = s.tcgplayer_id
+            LEFT JOIN set_years sy ON sy.set_name = c.set_name
             WHERE s.captured_on = (SELECT MAX(captured_on) FROM graded_price_snapshots) AND s.median_usd IS NOT NULL
+              AND {cond_ano('c')}
         """)
         if base.empty:
             st.info("Aun no hay datos.")
@@ -202,7 +234,8 @@ with tab2:
             st.markdown(f"**{len(filtro)} cartas** con {emp_sel} {grado_sel} entre US${precio_min} y US${precio_max}")
             if not filtro.empty:
                 filtro["Precio (USD · MXN · JPY)"] = filtro["median_usd"].apply(money_inline)
-                st.dataframe(filtro[["name","set_name","Precio (USD · MXN · JPY)","sales_count"]].rename(columns={"name":"Carta","set_name":"Set","sales_count":"Ventas eBay"}), use_container_width=True, hide_index=True)
+                filtro["Año"] = filtro["ano"].apply(col_ano)
+                st.dataframe(filtro[["name","set_name","Año","Precio (USD · MXN · JPY)","sales_count"]].rename(columns={"name":"Carta","set_name":"Set","sales_count":"Ventas eBay"}), use_container_width=True, hide_index=True)
             else:
                 st.info("Ninguna en ese rango.")
     except Exception as e:
@@ -212,7 +245,7 @@ with tab3:
     st.header("Mas vendidas del mercado")
     st.caption("Las que mas se mueven, con precio por grado. Salto 9->10 = cuanto ganas si sale un 10.")
     try:
-        graded = q("""
+        graded = q(f"""
             SELECT c.name, c.set_name, c.image_url,
                    MAX(CASE WHEN s.grade='psa10' THEN s.median_usd END) AS psa10,
                    MAX(CASE WHEN s.grade='psa9'  THEN s.median_usd END) AS psa9,
@@ -221,6 +254,7 @@ with tab3:
                    ROUND(100.0 * (MAX(CASE WHEN s.grade='psa10' THEN s.median_usd END) - MAX(CASE WHEN s.grade='psa9' THEN s.median_usd END)) / NULLIF(MAX(CASE WHEN s.grade='psa9' THEN s.median_usd END),0), 0) AS salto_pct
             FROM graded_price_snapshots s JOIN graded_cards c ON c.tcgplayer_id = s.tcgplayer_id
             WHERE s.captured_on = (SELECT MAX(captured_on) FROM graded_price_snapshots)
+              AND {cond_ano('c')}
             GROUP BY c.name, c.set_name, c.image_url ORDER BY ventas DESC NULLS LAST
         """)
         if not graded.empty:
@@ -342,10 +376,11 @@ with tab6:
     st.header("Historico de precios")
     st.caption("Evolucion de precio por grado de cualquier carta en tu base. Cada busqueda que haces alimenta este archivo.")
     try:
-        cartas_hist = q("""
+        cartas_hist = q(f"""
             SELECT DISTINCT c.tcgplayer_id, c.name, c.set_name
             FROM graded_cards c
             JOIN graded_price_snapshots s ON s.tcgplayer_id = c.tcgplayer_id
+            WHERE {cond_ano('c')}
             GROUP BY c.tcgplayer_id, c.name, c.set_name
             HAVING COUNT(DISTINCT s.captured_on) >= 1
             ORDER BY c.name
@@ -394,10 +429,11 @@ with tab7:
             st.error("Falta ANTHROPIC_API_KEY en los Secrets de Streamlit.")
         else:
             try:
-                datos = q("""
+                datos = q(f"""
                     SELECT c.name, c.set_name, s.grade, s.median_usd, s.average_usd, s.sales_count
                     FROM graded_price_snapshots s JOIN graded_cards c ON c.tcgplayer_id=s.tcgplayer_id
                     WHERE s.captured_on = (SELECT MAX(captured_on) FROM graded_price_snapshots)
+                      AND {cond_ano('c')}
                       AND s.grade IN ('psa9','psa10','cgc10')
                       AND s.median_usd >= %(pmin)s AND s.median_usd <= %(pmax)s
                       AND s.sales_count IS NOT NULL
@@ -458,7 +494,7 @@ with tab8:
     st.header("📉 Oportunidades: bajaron y se venden")
     st.caption("Cartas que cayeron de precio Y tienen alta demanda. Puntaje = bajada % x ventas. Mayor puntaje = mejor oportunidad.")
     try:
-        bajaron = q("""
+        bajaron = q(f"""
             WITH reciente AS (
                 SELECT tcgplayer_id, grade, median_usd, sales_count,
                        ROW_NUMBER() OVER (PARTITION BY tcgplayer_id, grade ORDER BY captured_on DESC) AS rn
@@ -470,13 +506,15 @@ with tab8:
                 FROM graded_price_snapshots
                 WHERE median_usd IS NOT NULL AND captured_on >= CURRENT_DATE - INTERVAL '8 days'
             )
-            SELECT c.name, c.set_name, r.grade, h.median_usd AS antes, r.median_usd AS ahora,
+            SELECT c.name, c.set_name, sy.year AS ano, r.grade, h.median_usd AS antes, r.median_usd AS ahora,
                    r.sales_count AS ventas,
                    ROUND(100.0*(r.median_usd - h.median_usd)/NULLIF(h.median_usd,0),1) AS cambio_pct
             FROM reciente r
             JOIN hace7 h ON h.tcgplayer_id=r.tcgplayer_id AND h.grade=r.grade AND h.rn=1
             JOIN graded_cards c ON c.tcgplayer_id=r.tcgplayer_id
+            LEFT JOIN set_years sy ON sy.set_name = c.set_name
             WHERE r.rn=1 AND r.median_usd IS NOT NULL
+              AND {cond_ano('c')}
         """)
     except Exception as e:
         bajaron = None
@@ -513,6 +551,7 @@ with tab8:
             filt["Bajo"] = filt["cambio_pct"].apply(lambda x: f"{x:.1f}%")
             filt["Ventas"] = filt["ventas"].fillna(0).astype(int)
             filt["Puntaje"] = filt["puntaje"].astype(int)
-            st.dataframe(filt[["name","set_name","Grado","Precio ahora","Bajo","Ventas","Puntaje"]].rename(columns={"name":"Carta","set_name":"Set"}), use_container_width=True, hide_index=True)
+            filt["Año"] = filt["ano"].apply(col_ano)
+            st.dataframe(filt[["name","set_name","Año","Grado","Precio ahora","Bajo","Ventas","Puntaje"]].rename(columns={"name":"Carta","set_name":"Set"}), use_container_width=True, hide_index=True)
     elif bajaron is not None:
         st.info("Aun no hay suficiente historia para comparar. Espera unos dias mas de datos.")
