@@ -454,14 +454,13 @@ Son sugerencias, no garantias."""
             except Exception as e:
                 st.error(f"Error al analizar: {str(e)[:200]}")
 
-
 with tab8:
-    st.header("📉 Cartas que mas bajaron (7 dias)")
-    st.caption("Oportunidades: cartas que cayeron de precio y podrian rebotar. Precio de hoy vs ~7 dias atras.")
+    st.header("📉 Oportunidades: bajaron y se venden")
+    st.caption("Cartas que cayeron de precio Y tienen alta demanda. Puntaje = bajada % x ventas. Mayor puntaje = mejor oportunidad.")
     try:
         bajaron = q("""
             WITH reciente AS (
-                SELECT tcgplayer_id, grade, median_usd,
+                SELECT tcgplayer_id, grade, median_usd, sales_count,
                        ROW_NUMBER() OVER (PARTITION BY tcgplayer_id, grade ORDER BY captured_on DESC) AS rn
                 FROM graded_price_snapshots WHERE median_usd IS NOT NULL
             ),
@@ -472,6 +471,7 @@ with tab8:
                 WHERE median_usd IS NOT NULL AND captured_on >= CURRENT_DATE - INTERVAL '8 days'
             )
             SELECT c.name, c.set_name, r.grade, h.median_usd AS antes, r.median_usd AS ahora,
+                   r.sales_count AS ventas,
                    ROUND(100.0*(r.median_usd - h.median_usd)/NULLIF(h.median_usd,0),1) AS cambio_pct
             FROM reciente r
             JOIN hace7 h ON h.tcgplayer_id=r.tcgplayer_id AND h.grade=r.grade AND h.rn=1
@@ -492,23 +492,27 @@ with tab8:
         else:
             grados_b = sorted(bajaron["num_grado"].unique().tolist(), reverse=True)
         grado_b = f2.selectbox("Grado", ["Todos"] + grados_b, key="grado_baja")
-        pmin_b = f3.number_input("Min USD", min_value=0, value=0, step=10, key="pmin_baja")
-        pmax_b = f4.number_input("Max USD", min_value=0, value=1000, step=10, key="pmax_baja")
-        filt = bajaron[bajaron["cambio_pct"] < 0].copy()
+        ventas_min = f3.number_input("Ventas minimas", min_value=0, value=50, step=10, key="ventas_min_baja")
+        pmax_b = f4.number_input("Precio max USD", min_value=0, value=1000, step=50, key="pmax_baja")
+
+        filt = bajaron[(bajaron["cambio_pct"] < 0) & (bajaron["ventas"].fillna(0) >= ventas_min) & (bajaron["ahora"] <= pmax_b)].copy()
         if emp_b != "Todas":
             filt = filt[filt["empresa"]==emp_b]
         if grado_b != "Todos":
             filt = filt[filt["num_grado"]==grado_b]
-        filt = filt[(filt["ahora"]>=pmin_b) & (filt["ahora"]<=pmax_b)]
-        filt = filt.sort_values("cambio_pct").head(30)
-        st.markdown(f"**{len(filt)} cartas** que bajaron")
+        # Puntaje de oportunidad = cuanto bajo (abs) x ventas
+        filt["puntaje"] = (filt["cambio_pct"].abs() * filt["ventas"].fillna(0)).round(0)
+        filt = filt.sort_values("puntaje", ascending=False).head(30)
+
+        st.markdown(f"**{len(filt)} oportunidades** (bajaron + {int(ventas_min)}+ ventas)")
         if filt.empty:
-            st.info("Ninguna carta bajo con esos filtros. Amplia el rango o cambia el grado.")
+            st.info("Ninguna carta cumple. Baja el minimo de ventas o amplia el precio.")
         else:
             filt["Grado"] = filt["empresa"] + " " + filt["num_grado"]
-            filt["Antes"] = filt["antes"].apply(money_inline)
-            filt["Ahora"] = filt["ahora"].apply(money_inline)
-            filt["Cambio"] = filt["cambio_pct"].apply(lambda x: f"{x:.1f}%")
-            st.dataframe(filt[["name","set_name","Grado","Antes","Ahora","Cambio"]].rename(columns={"name":"Carta","set_name":"Set"}), use_container_width=True, hide_index=True)
+            filt["Precio ahora"] = filt["ahora"].apply(money_inline)
+            filt["Bajo"] = filt["cambio_pct"].apply(lambda x: f"{x:.1f}%")
+            filt["Ventas"] = filt["ventas"].fillna(0).astype(int)
+            filt["Puntaje"] = filt["puntaje"].astype(int)
+            st.dataframe(filt[["name","set_name","Grado","Precio ahora","Bajo","Ventas","Puntaje"]].rename(columns={"name":"Carta","set_name":"Set"}), use_container_width=True, hide_index=True)
     elif bajaron is not None:
         st.info("Aun no hay suficiente historia para comparar. Espera unos dias mas de datos.")
