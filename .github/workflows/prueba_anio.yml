@@ -1,0 +1,31 @@
+name: Prueba campo anio
+
+on:
+  workflow_dispatch:
+
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Ver campos
+        env:
+          PPT_API_KEY: ${{ secrets.PPT_API_KEY }}
+        run: |
+          python -c "
+          import os, urllib.request, json
+          key = os.environ['PPT_API_KEY']
+          req = urllib.request.Request('https://www.pokemonpricetracker.com/api/v2/cards?search=charizard&limit=1', headers={'Authorization': 'Bearer ' + key})
+          d = json.load(urllib.request.urlopen(req, timeout=30))
+          card = d['data'][0] if isinstance(d.get('data'), list) else d.get('data')
+          print('=== TODOS los campos de la carta ===')
+          for k, v in card.items():
+              if not isinstance(v, (dict, list)):
+                  print(f'{k}: {v}')
+          print('=== Subcampos tipo set ===')
+          for k in ['set','setInfo','setData','series']:
+              if k in card: print(k, ':', json.dumps(card[k])[:300])
+          "
