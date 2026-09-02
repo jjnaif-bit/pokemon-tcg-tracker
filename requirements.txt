@@ -3,3 +3,5 @@ psycopg2-binary
 pandas
 streamlit
 trendspy
+gspread
+google-auth
