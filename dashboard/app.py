@@ -5,7 +5,7 @@ import psycopg2
 import requests as _rq
 import streamlit as st
 
-st.set_page_config(page_title="Toshi - Radar Pokemon", page_icon="🔥", layout="wide")
+st.set_page_config(initial_sidebar_state="expanded"page_title="Toshi - Radar Pokemon", page_icon="🔥", layout="wide")
 
 st.markdown("""
 <style>
