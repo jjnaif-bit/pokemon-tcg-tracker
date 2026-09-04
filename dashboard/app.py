@@ -128,7 +128,7 @@ st.caption("Cartas mas vendidas + precios gradeados PSA/CGC/BGS (venta real eBay
 @st.cache_data(ttl=3600)
 def rango_anos():
     try:
-        d = q("SELECT MIN(year) AS mn, MAX(year) AS mx FROM set_years WHERE year IS NOT NULL")
+        d = q("SELECT MIN(year) AS mn, MAX(year) AS mx FROM set_years WHERE year > 0")
         return int(d["mn"].iloc[0]), int(d["mx"].iloc[0])
     except Exception:
         return 1999, 2026
@@ -147,7 +147,7 @@ def cond_ano(alias="c"):
     """Condicion SQL para limitar por año del set. alias = tabla de cartas."""
     c = f"{alias}.set_name IN (SELECT set_name FROM set_years WHERE year BETWEEN {ANO_INI} AND {ANO_FIN})"
     if SIN_ANO:
-        c = f"({c} OR {alias}.set_name IN (SELECT set_name FROM set_years WHERE year IS NULL))"
+        c = f"({c} OR {alias}.set_name IN (SELECT set_name FROM set_years WHERE year IS NULL OR year = 0))"
     return c
 
 def col_ano(s):
