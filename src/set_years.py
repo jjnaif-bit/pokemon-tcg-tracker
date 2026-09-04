@@ -8,7 +8,11 @@ def main():
     s.headers["Authorization"] = f"Bearer {os.environ['PPT_API_KEY']}"
     sets, offset = [], 0
     while True:
-        r = s.get(f"{BASE}/sets", params={"limit": 100, "offset": offset, "sortBy": "releaseDate", "sortOrder": "desc"}, timeout=40)
+        r = s.get(f"{BASE}/sets", params={"limit": 100, "offset": offset}, timeout=40)
+        if offset == 0:
+            _c = psycopg2.connect(os.environ["DATABASE_URL"]); _cur = _c.cursor()
+            _cur.execute("INSERT INTO prueba_json (contenido) VALUES (%s)", (f"SETS HTTP {r.status_code}\n" + r.text[:4000],))
+            _c.commit(); _c.close()
         if r.status_code != 200:
             log.error("HTTP %s: %s", r.status_code, r.text[:200]); break
         data = r.json().get("data") or []
