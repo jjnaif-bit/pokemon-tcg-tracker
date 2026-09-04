@@ -1,0 +1,34 @@
+name: Sembrar sets viejos (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      grupo:
+        description: "Grupo a sembrar"
+        required: true
+        default: "C"
+        type: choice
+        options: ["A", "B", "C", "D"]
+
+concurrency:
+  group: sets-scraper
+  cancel-in-progress: false
+
+jobs:
+  sembrar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Sembrar
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PPT_API_KEY: ${{ secrets.PPT_API_KEY }}
+          GRUPO: ${{ inputs.grupo }}
+        run: python -m src.sembrar
