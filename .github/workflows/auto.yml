@@ -1,12 +1,18 @@
-name: Ver campos de sets (diagnostico)
+name: Sembrar sets nuevos (automatico)
 
 on:
+  schedule:
+    - cron: "0 19 * * 2"
   workflow_dispatch:
 
+concurrency:
+  group: sets-scraper
+  cancel-in-progress: false
+
 jobs:
-  ver:
+  auto:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 200
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -15,7 +21,8 @@ jobs:
           cache: pip
       - name: Instalar dependencias
         run: pip install -r requirements.txt
-      - name: Ver sets
+      - name: Sembrar automatico
         env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PPT_API_KEY: ${{ secrets.PPT_API_KEY }}
-        run: python -m src.ver_sets
+        run: python -m src.auto
