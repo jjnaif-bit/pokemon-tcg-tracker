@@ -14,7 +14,7 @@ log = logging.getLogger("rotar")
 
 BASE = "https://www.pokemonpricetracker.com/api/v2"
 PAUSA = 1.5
-GRUPOS = 3
+GRUPOS = 6
 
 def _dsn():
     dsn = os.environ.get("DATABASE_URL")
