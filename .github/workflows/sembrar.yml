@@ -8,7 +8,7 @@ on:
         required: true
         default: "C"
         type: choice
-        options: ["A", "B", "C", "D"]
+        options: ["A", "B", "C", "D", "E"]
 
 concurrency:
   group: sets-scraper

@@ -41,6 +41,19 @@ GRUPOS = {
         "XY - Furious Fists", "XY - Phantom Forces", "XY - Primal Clash",
         "XY - Roaring Skies", "XY - Ancient Origins", "XY - BREAKthrough",
     ],
+    "E": [
+        "SV09: Journey Together", "SV10: Destined Rivals",
+        "SV: Black Bolt", "SV: White Flare", "SV9: Battle Partners",
+        "SV9a: Heat Wave Arena", "ME01: Mega Evolution",
+        "ME02: Phantasmal Flames", "ME03: Perfect Order",
+        "ME04: Chaos Rising", "ME05: Pitch Black", "ME: Ascended Heroes",
+        "ME: Mega Evolution Promo", "ME: 30th Celebration",
+        "ME: 30th Celebration Classic Collection",
+        "MEE: Mega Evolution Energies", "M2: Inferno X",
+        "M2a: High Class Pack: MEGA Dream ex", "M4: Ninja Spinner",
+        "m1S: Mega Symphonia", "First Partner Collection 2026",
+        "Player Placement Trainer Promos",
+    ],
 }
 
 def main():
@@ -48,7 +61,7 @@ def main():
         log.error("Falta PPT_API_KEY"); return 1
     grupo = (os.environ.get("GRUPO") or "C").upper()
     if grupo not in GRUPOS:
-        log.error("Grupo invalido: %s. Usa A, B, C o D", grupo); return 1
+        log.error("Grupo invalido: %s. Usa A, B, C, D o E", grupo); return 1
     lista = GRUPOS[grupo]
     log.info("### GRUPO %s — %s sets ###", grupo, len(lista))
 
