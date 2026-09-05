@@ -1,7 +1,7 @@
 """Siembra sets viejos completos. Disparo MANUAL, no corre solo."""
 import logging, os, sys, time
 import requests
-from src.sets import connect, cartas_de_set, guardar_carta
+from src.sets import connect, cartas_de_set, guardar_carta, BASE as BASE_JP
 
 log = logging.getLogger("sembrar")
 
@@ -54,14 +54,43 @@ GRUPOS = {
         "m1S: Mega Symphonia", "First Partner Collection 2026",
         "Player Placement Trainer Promos",
     ],
+    "F": [
+        "SV9: Battle Partners", "SV9a: Heat Wave Arena",
+        "M2: Inferno X", "M2a: High Class Pack: MEGA Dream ex",
+        "M4: Ninja Spinner", "m1S: Mega Symphonia",
+    ],
 }
+
+def cartas_jp(session, set_name):
+    """Igual que cartas_de_set pero pidiendo el catalogo japones."""
+    import time as _t
+    todas, offset = [], 0
+    while True:
+        intentos = 0
+        while True:
+            r = session.get(f"{BASE_JP}/cards", params={
+                "setName": set_name, "limit": 50, "offset": offset,
+                "includeEbay": "true", "language": "japanese"}, timeout=40)
+            if r.status_code == 429:
+                intentos += 1
+                if intentos > 5: return todas
+                _t.sleep(30 * intentos); continue
+            break
+        if r.status_code != 200: break
+        data = r.json().get("data") or []
+        if not data: break
+        todas.extend(data)
+        offset += 50
+        _t.sleep(2.0)
+        if len(data) < 50: break
+    return todas
 
 def main():
     if not os.environ.get("PPT_API_KEY"):
         log.error("Falta PPT_API_KEY"); return 1
     grupo = (os.environ.get("GRUPO") or "C").upper()
     if grupo not in GRUPOS:
-        log.error("Grupo invalido: %s. Usa A, B, C, D o E", grupo); return 1
+        log.error("Grupo invalido: %s. Usa A, B, C, D, E o F", grupo); return 1
     lista = GRUPOS[grupo]
     log.info("### GRUPO %s — %s sets ###", grupo, len(lista))
 
@@ -74,7 +103,7 @@ def main():
             log.info("=== Set: %s ===", set_name)
             time.sleep(10)
             try:
-                cartas = cartas_de_set(session, set_name)
+                cartas = (cartas_jp if grupo == "F" else cartas_de_set)(session, set_name)
                 log.info("   %s cartas encontradas", len(cartas))
                 if not cartas:
                     vacios.append(set_name); continue
