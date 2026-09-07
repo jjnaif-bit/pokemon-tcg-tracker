@@ -9,10 +9,6 @@ def main():
     sets, offset = [], 0
     while True:
         r = s.get(f"{BASE}/sets", params={"limit": 100, "offset": offset}, timeout=40)
-        if offset == 0:
-            _c = psycopg2.connect(os.environ["DATABASE_URL"]); _cur = _c.cursor()
-            _cur.execute("INSERT INTO prueba_json (contenido) VALUES (%s)", (f"SETS HTTP {r.status_code}\n" + r.text[:4000],))
-            _c.commit(); _c.close()
         if r.status_code != 200:
             log.error("HTTP %s: %s", r.status_code, r.text[:200]); break
         data = r.json().get("data") or []
@@ -22,7 +18,6 @@ def main():
     log.info("Sets recibidos de la API: %s", len(sets))
     if not sets: return 1
     conn = psycopg2.connect(os.environ["DATABASE_URL"]); cur = conn.cursor()
-    cur.execute("INSERT INTO prueba_json (contenido) VALUES (%s)", (json.dumps(sets[0], indent=2)[:4000],))
     actualizados, sin_fecha = 0, 0
     for st in sets:
         nombre = st.get("name") or st.get("setName")
